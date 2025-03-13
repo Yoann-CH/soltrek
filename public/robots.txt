@@ -1,0 +1,11 @@
+# Robots.txt pour SolTrek
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://soltrek.vercel.app/sitemap.xml
+
+# Désactiver l'indexation des fichiers médias volumineux
+User-agent: *
+Disallow: /models/
+Disallow: /textures/high-res/ 

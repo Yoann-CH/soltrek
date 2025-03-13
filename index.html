@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- SEO Meta Tags -->
+    <title>SolTrek - Explorez le Système Solaire en 3D Interactive</title>
+    <meta name="description" content="Découvrez SolTrek, une expérience spatiale immersive en 3D. Explorez le système solaire et découvrez les merveilles du cosmos dans cette simulation interactive." />
+    <meta name="keywords" content="système solaire, exploration spatiale, 3D interactive, planètes, astronomie, réalité virtuelle, SolTrek" />
+    <meta name="author" content="SolTrek" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://soltrek.vercel.app/" />
+    <meta property="og:title" content="SolTrek - Exploration Spatiale Interactive en 3D" />
+    <meta property="og:description" content="Voyagez à travers le système solaire avec SolTrek. Découvrez les planètes, astéroïdes et autres corps célestes dans cette simulation spatiale immersive." />
+    <meta property="og:image" content="/social-preview.jpg" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://soltrek.vercel.app/" />
+    <meta property="twitter:title" content="SolTrek - Exploration Spatiale Interactive en 3D" />
+    <meta property="twitter:description" content="Voyagez à travers le système solaire avec SolTrek. Explorez les planètes et découvrez les merveilles du cosmos dans cette simulation interactive." />
+    <meta property="twitter:image" content="/social-preview.jpg" />
+    
+    <!-- Canonical Link -->
+    <link rel="canonical" href="https://soltrek.vercel.app/" />
+    
+    <!-- Favicon de base -->
+    <link rel="icon" type="image/svg+xml" href="/planet-advanced.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png" />
+    
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    
+    <!-- Manifest pour PWA -->
+    <link rel="manifest" href="/site.webmanifest" />
+    
+    <!-- Couleur du thème pour navigateurs mobiles -->
+    <meta name="theme-color" content="#06071A" />
+    
+    <!-- Structured Data / Schema.org -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "SolTrek",
+      "description": "Simulation interactive permettant d'explorer le système solaire en 3D",
+      "applicationCategory": "GameApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "EUR"
+      },
+      "screenshot": "/screenshots/main-view.jpg",
+      "featureList": "Simulation du système solaire en 3D, Navigation interactive, Exploration des planètes, Effets visuels avancés"
+    }
+    </script>
+  </head>
+  <body>
+    <!-- Éléments pour les lecteurs d'écran et l'accessibilité -->
+    <h1 class="sr-only">SolTrek - Exploration du Système Solaire en 3D</h1>
+    <p class="sr-only">Bienvenue sur SolTrek, une simulation spatiale interactive vous permettant d'explorer le système solaire, de piloter des vaisseaux et de découvrir les merveilles du cosmos.</p>
+    
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Preconnect pour optimiser le chargement des ressources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </body>
+</html>

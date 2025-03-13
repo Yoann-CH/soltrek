@@ -1,0 +1,424 @@
+import { useMemo, useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { Stars } from '@react-three/drei';
+import * as THREE from 'three';
+import React from 'react';
+
+// Imports pour les effets de post-processing
+import { EffectComposer, Bloom, Vignette, ChromaticAberration } from '@react-three/postprocessing';
+import { BlendFunction, KernelSize } from 'postprocessing';
+
+// Import des composants modulaires du système solaire
+import { Sun } from './Sun';
+import { Planet } from './Planet';
+import { Lighting } from './Lighting';
+import { CameraControls } from './CameraControls';
+import { DateDisplay } from './DateDisplay';
+import { PLANETS_DATA } from './constants';
+import { SolarSystemProvider } from './SolarSystemContext';
+import { usePlanetPositions } from './utils';
+
+// Chargement paresseux des composants moins critiques
+const AsteroidBelt = lazy(() => import('./AsteroidBelt').then(mod => ({ default: mod.AsteroidBelt })));
+const NebulaBackground = lazy(() => import('./Nebula').then(mod => ({ default: mod.default })));
+
+// Composants optimisés avec memo
+const PostProcessingEffects = React.memo(() => (
+  <EffectComposer>
+    <Bloom 
+      intensity={1.5} 
+      luminanceThreshold={0.2} 
+      luminanceSmoothing={0.8} 
+      blendFunction={BlendFunction.SCREEN}
+      kernelSize={KernelSize.LARGE}
+    />
+    <Vignette 
+      offset={0.2} 
+      darkness={0.7} 
+      blendFunction={BlendFunction.NORMAL}
+    />
+    <ChromaticAberration 
+      offset={new THREE.Vector2(0.0008, 0.0008)} 
+      blendFunction={BlendFunction.NORMAL}
+    />
+  </EffectComposer>
+));
+
+PostProcessingEffects.displayName = 'PostProcessingEffects';
+
+// Composant optimisé pour le fond étoilé combiné avec des nébuleuses
+const SkyBackground = React.memo(({ starCount }: { starCount: number }) => (
+  <>
+    <Stars radius={120} depth={80} count={starCount} factor={4} saturation={0.5} fade speed={1} />
+    <Suspense fallback={null}>
+      <NebulaBackground />
+    </Suspense>
+  </>
+));
+
+SkyBackground.displayName = 'SkyBackground';
+
+// Composant pour les planètes avec mémorisation
+const PlanetsList = React.memo(() => {
+  return (
+    <>
+      {PLANETS_DATA.map((planet, index) => (
+        <Planet 
+          key={planet.name}
+          name={planet.name}
+          radius={planet.radius}
+          distance={planet.distance}
+          texturePath={planet.texturePath}
+          hasRings={planet.hasRings}
+          index={index}
+          planet={planet}
+        />
+      ))}
+    </>
+  );
+});
+
+PlanetsList.displayName = 'PlanetsList';
+
+// Composant pour l'interface utilisateur en bas
+const BottomUI = React.memo(({ 
+  resetView, 
+  resetDate, 
+  isLiveDate, 
+  focusedPlanetIndex 
+}: { 
+  resetView: () => void, 
+  resetDate: () => void,
+  isLiveDate: boolean,
+  focusedPlanetIndex: number | null
+}) => {
+  // Déterminer quels boutons afficher
+  const showResetDateButton = !isLiveDate;
+  const showResetViewButton = focusedPlanetIndex !== null;
+  
+  // Si aucun bouton à afficher, ne pas rendre le composant
+  if (!showResetDateButton && !showResetViewButton) {
+    return null;
+  }
+
+  return (
+    <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 bg-black/70 backdrop-blur-md rounded-md text-white z-30 border border-gray-700/30 shadow-lg">
+      
+      {/* Contrôles temporels stylisés */}
+      <div className="flex items-center justify-between w-full gap-3">
+        {showResetDateButton && (
+          <button 
+            className="cursor-pointer bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] xs:text-xs shadow-md shadow-yellow-500/20 transition-all"
+            onClick={resetDate}
+          >
+            Aujourd'hui
+          </button>
+        )}
+        
+        {showResetViewButton && (
+          <button 
+            className="cursor-pointer bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] xs:text-xs shadow-md shadow-blue-500/20 transition-all"
+            onClick={resetView}
+          >
+            Vue d'ensemble
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
+BottomUI.displayName = 'BottomUI';
+
+// Composant pour le sélecteur de planètes
+const PlanetSelector = React.memo(({ 
+  focusedPlanetIndex, 
+  showPlanetMenu, 
+  togglePlanetMenu,
+  focusOnPlanet
+}: { 
+  focusedPlanetIndex: number | null,
+  showPlanetMenu: boolean,
+  togglePlanetMenu: () => void,
+  focusOnPlanet: (index: number) => void
+}) => (
+  <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-30">
+    <button 
+      className="cursor-pointer flex items-center justify-between w-full px-2 py-1 sm:px-3 sm:py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-md text-[10px] xs:text-xs shadow-md shadow-blue-500/20 transition-all"
+      onClick={togglePlanetMenu}
+    >
+      <span className="mr-1 font-medium">
+        {focusedPlanetIndex !== null ? PLANETS_DATA[focusedPlanetIndex].name : "Planètes"}
+      </span>
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        className={`h-3 w-3 transition-transform ${showPlanetMenu ? 'rotate-180' : ''}`} 
+        viewBox="0 0 20 20" 
+        fill="currentColor"
+      >
+        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+      </svg>
+    </button>
+    
+    {showPlanetMenu && (
+      <div className="absolute top-full right-0 mt-1 w-32 sm:w-36 bg-black/80 backdrop-blur-md rounded-md shadow-lg p-2 flex flex-col gap-1 border border-gray-700/30">
+        {PLANETS_DATA.map((planet, index) => (
+          <button
+            key={planet.name}
+            className={`cursor-pointer text-left text-[10px] xs:text-xs py-1 px-2 rounded transition-colors ${
+              focusedPlanetIndex === index 
+                ? "bg-gradient-to-r from-blue-600/80 to-purple-600/80 text-white font-medium" 
+                : "hover:bg-blue-600/30 text-gray-200"
+            }`}
+            onClick={() => {
+              focusOnPlanet(index);
+            }}
+          >
+            {planet.name}
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+));
+
+PlanetSelector.displayName = 'PlanetSelector';
+
+// Interface pour les props du SolarSystemView
+interface SolarSystemViewProps {
+  onLoaded?: () => void; // Callback pour signaler que le composant a fini de charger
+  isVisible?: boolean;   // Indique si le composant est visible à l'écran
+  quality?: 'low' | 'medium' | 'high'; // Contrôle la qualité du rendu
+}
+
+// Composant principal, optimisé
+export default function SolarSystemView({ 
+  onLoaded, 
+  isVisible = true,
+  quality = 'medium' 
+}: SolarSystemViewProps) {
+  // États du système solaire
+  const [focusedPlanetIndex, setFocusedPlanetIndex] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [timeScale, setTimeScale] = useState<number>(0); // 0 = temps réel, sinon multiplicateur
+  const [isLiveDate, setIsLiveDate] = useState(true); // Nouvel état pour suivre si on utilise la date en temps réel
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showPlanetMenu, setShowPlanetMenu] = useState(false);
+  const planetPositions = usePlanetPositions(PLANETS_DATA.length);
+  
+  // Déterminer les paramètres de qualité en fonction du niveau sélectionné
+  const qualitySettings = useMemo(() => {
+    switch (quality) {
+      case 'low':
+        return {
+          dpr: [0.6, 1] as [number, number], // Résolution réduite
+          starsCount: 2000,
+          usePostProcessing: false,
+          drawDistance: 80,
+          asteroidsCount: 50
+        };
+      case 'medium':
+        return {
+          dpr: [1, 1.5] as [number, number], // Résolution normale
+          starsCount: 5000,
+          usePostProcessing: true,
+          drawDistance: 100,
+          asteroidsCount: 150
+        };
+      case 'high':
+        return {
+          dpr: [1, 2] as [number, number], // Haute résolution
+          starsCount: 7000,
+          usePostProcessing: true,
+          drawDistance: 120,
+          asteroidsCount: 300
+        };
+      default:
+        return {
+          dpr: [1, 1.5] as [number, number],
+          starsCount: 5000,
+          usePostProcessing: true,
+          drawDistance: 100,
+          asteroidsCount: 150
+        };
+    }
+  }, [quality]);
+  
+  // Simuler un temps de chargement
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+      // Appeler le callback onLoaded pour informer le parent que la vue est chargée
+      if (onLoaded) {
+        onLoaded();
+      }
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, [onLoaded]);
+  
+  // Mettre à jour la date en fonction du temps réel, optimisé avec des dépendances précises
+  useEffect(() => {
+    // Si le composant n'est pas visible ou en cours de chargement, ne pas mettre à jour la date
+    if (!isVisible || isLoading) return;
+    
+    let interval: ReturnType<typeof setInterval>;
+    
+    // Si timeScale est 0 ET isLiveDate est true, on suit le temps réel
+    if (timeScale === 0 && isLiveDate) {
+      interval = setInterval(() => {
+        setCurrentDate(new Date());
+      }, 60000); // Mise à jour chaque minute
+    } else if (timeScale !== 0) {
+      // Sinon, on avance ou recule le temps selon le timeScale
+      interval = setInterval(() => {
+        setCurrentDate(date => {
+          const newDate = new Date(date);
+          newDate.setDate(newDate.getDate() + timeScale);
+          return newDate;
+        });
+      }, 1000); // Mise à jour plus rapide
+    } else {
+      // Pas d'intervalle si on a une date fixe sélectionnée
+      return;
+    }
+    
+    return () => clearInterval(interval);
+  }, [timeScale, isLiveDate, isVisible, isLoading]);
+  
+  // Réinitialiser la vue
+  const resetView = useCallback(() => {
+    setFocusedPlanetIndex(null);
+  }, []);
+  
+  // Focaliser sur une planète
+  const focusOnPlanet = useCallback((index: number) => {
+    setFocusedPlanetIndex(index);
+    setShowPlanetMenu(false);
+  }, []);
+
+  // Gestionnaire pour les mises à jour de caméra
+  const handleCameraUpdate = useCallback(() => {
+    // Cette fonction est appelée à chaque mise à jour de caméra mais nous n'avons pas besoin de stocker ces valeurs
+  }, []);
+  
+  // Réinitialiser à la date actuelle
+  const resetDate = useCallback(() => {
+    setCurrentDate(new Date());
+    setTimeScale(0);
+    setIsLiveDate(true); // Activer le suivi du temps réel
+  }, []);
+  
+  // Définir une date spécifique
+  const handleDateSelect = useCallback((date: Date) => {
+    setCurrentDate(date);
+    setTimeScale(0); // Arrêter l'écoulement du temps quand une date est sélectionnée manuellement
+    setIsLiveDate(false); // Désactiver le suivi du temps réel
+  }, []);
+
+  // Basculer l'affichage du sélecteur de date
+  const toggleDatePicker = useCallback(() => {
+    setShowDatePicker(prev => !prev);
+  }, []);
+
+  // Fonction pour basculer le menu des planètes
+  const togglePlanetMenu = useCallback(() => {
+    setShowPlanetMenu(prev => !prev);
+  }, []);
+
+  // Créer la valeur du contexte de manière optimisée
+  const contextValue = useMemo(() => ({ 
+    setFocusedPlanet: setFocusedPlanetIndex,
+    planetPositions,
+    currentDate,
+    focusedPlanetIndex,
+    timeScale,
+    isLiveDate
+  }), [focusedPlanetIndex, planetPositions, currentDate, timeScale, isLiveDate]);
+
+  return (
+    <>
+      {isLoading ? (
+        <div className="flex items-center justify-center h-[400px] sm:h-[400px] md:h-[450px]">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 border-4 border-t-blue-500 border-l-blue-500 border-b-purple-500 border-r-purple-500 rounded-full animate-spin"></div>
+            <p className="mt-4 text-sm sm:text-base text-gray-600 dark:text-gray-300">Chargement des planètes...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="relative w-full h-[400px] sm:h-[400px] md:h-[450px] lg:h-[500px] xl:h-[550px]">
+          {/* Afficher le sélecteur de planète et les contrôles UI en dehors du Canvas pour de meilleures performances */}
+          {isVisible && (
+            <>
+              <PlanetSelector 
+                focusedPlanetIndex={focusedPlanetIndex} 
+                showPlanetMenu={showPlanetMenu}
+                togglePlanetMenu={togglePlanetMenu}
+                focusOnPlanet={focusOnPlanet}
+              />
+              
+              <DateDisplay 
+                date={currentDate} 
+                onDateSelect={handleDateSelect}
+                showDatePicker={showDatePicker}
+                toggleDatePicker={toggleDatePicker}
+                isLiveDate={isLiveDate}
+              />
+            </>
+          )}
+          
+          <SolarSystemProvider value={contextValue}>
+            <Canvas 
+              camera={{ position: [0, 15, 50], fov: 60 }}
+              dpr={qualitySettings.dpr} // Utiliser le DPR basé sur la qualité
+              frameloop={isVisible ? "demand" : "never"} // Arrêter complètement la boucle de rendu lorsque non visible
+              style={{ background: 'transparent' }}
+              className="orbit-view h-full"
+            >
+              {/* On ne rend rien si le composant n'est pas visible */}
+              {isVisible && (
+                <>
+                  {/* Éclairage et ambiance */}
+                  <Lighting />
+                  
+                  {/* Fond étoilé */}
+                  <SkyBackground starCount={qualitySettings.starsCount} />
+                  
+                  {/* Soleil */}
+                  <Sun />
+                  
+                  {/* Liste de planètes */}
+                  <PlanetsList />
+                  
+                  {/* Ceinture d'astéroïdes */}
+                  <Suspense fallback={null}>
+                    <AsteroidBelt count={qualitySettings.asteroidsCount} />
+                  </Suspense>
+                  
+                  {/* Contrôles de caméra */}
+                  <CameraControls 
+                    focusedPlanetIndex={focusedPlanetIndex} 
+                    onCameraUpdate={handleCameraUpdate}
+                  />
+                  
+                  {/* Effets post-traitement */}
+                  {qualitySettings.usePostProcessing && <PostProcessingEffects />}
+                </>
+              )}
+            </Canvas>
+          </SolarSystemProvider>
+          
+          {isVisible && (
+            <BottomUI 
+              resetView={resetView} 
+              resetDate={resetDate} 
+              isLiveDate={isLiveDate}
+              focusedPlanetIndex={focusedPlanetIndex}
+            />
+          )}
+        </div>
+      )}
+    </>
+  );
+} 

@@ -1,0 +1,83 @@
+⚡ Cursor Composeur Rules for "SolTrek"
+🚀 Optimized Tech Stack
+Rendering & UI
+Vite.js → Fast build system for instant HMR
+Tailwind CSS → For styling and responsiveness
+shadcn/ui & Magic UI → Modern, interactive UI components
+3D & Animations
+Three.js (v0.137.5) → Core 3D engine
+react-three-fiber → React wrapper for Three.js
+@react-three/drei → Utilities (orbit controls, shaders, etc.)
+@react-three/cannon → Physics engine
+@react-spring/three → Advanced animations
+Interactions & Performance
+Zustand → Lightweight state management
+SWR → Efficient data fetching for real-time updates
+Tweakpane → UI for debugging & tweaking parameters
+Postprocessing → Advanced visual effects (bloom, DOF, glow, etc.)
+InstancedMesh → Reduce draw calls for objects like asteroids & particles
+LOD (Level of Detail) → Optimize distant objects
+Audio & Effects
+Howler.js → Sound effects & music playback
+GSAP → Timeline-based animations
+Deployment & Optimization
+Vercel → Seamless deployment & edge functions
+Lottie-react → Animated UI elements
+Texture Streaming → Optimize loading with useLoader(TextureLoader, url)
+✨ Code Optimization Guidelines
+✅ Use Lazy Loading → import() for large components (3D models, HUD, etc.)
+✅ Memoization & React.memo → Reduce unnecessary re-renders
+✅ GPU Acceleration → Optimize textures, use shaders for special effects
+✅ Batch Rendering → Reduce draw calls using InstancedMesh
+✅ Optimize Event Handling → Debounce/throttle expensive interactions
+✅ Level of Detail (LOD) → Display simplified models for distant objects
+✅ Preload Textures → Optimize rendering with streaming assets
+
+🎮 Game Features & Implementation
+1️⃣ Core Solar System Simulation
+✅ Realistic planetary physics using react-three/cannon
+✅ Accurate orbital movements via Kepler's laws
+✅ Planet selection with detailed UI overlays
+
+2️⃣ Navigation & Controls
+✅ OrbitControls → Free camera movement
+✅ First-Person Mode → Pilot a spacecraft 🚀
+✅ Keyboard & Gamepad Support
+
+3️⃣ Spacecraft & Combat
+✅ Fly through space with inertia-based movement
+✅ AI-driven space battles (using simple state machines)
+
+4️⃣ Interactive UI & Memes
+✅ Meme Wall → Clickable pop culture references
+✅ Dark mode & customizable UI
+
+5️⃣ Visual & Audio Effects
+✅ Post-processing: Bloom, Motion Blur, Glow
+✅ Explosions & Particle Effects
+✅ Dynamic Space Weather (meteor showers, solar flares)
+✅ Epic Space Soundtrack 🎶
+
+🛠 Best Practices for Development
+✅ Organize components properly → Avoid large monolithic files
+✅ Use Zustand instead of context providers when possible
+✅ Keep animations fluid → Reduce FPS drops with WebGL optimizations
+✅ Debug with Tweakpane → Fine-tune visual parameters live
+
+✅ Cursor Composeur Shortcuts
+comp: → Generate a new component in components/
+page: → Create a new Vite route
+hook: → Scaffold a new custom hook in lib/
+effect: → Add a new post-processing effect in lib/shaders.ts
+test: → Create a Jest/React Testing Library test file
+📊 Testing Strategy
+Unit Testing: Jest & React Testing Library
+Integration Tests: Cypress for UI testing
+Performance Profiling: WebGL stats tracking
+End-to-End Tests: Playwright for interactions
+🔥 Bonus Features
+✅ Photo Mode 📸 → Take snapshots of the universe
+✅ Real-time Space Weather ☀️🌑 → Space storms & solar flares
+✅ Optimized Asteroid Fields 🌠 → Instanced rendering for better performance
+
+💡 “Build a universe, make it interactive, and let the users explore the stars.” 🚀

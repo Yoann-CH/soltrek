@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Définitions des filtres et dégradés -->
+  <defs>
+    <!-- Filtre de lueur -->
+    <filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feFlood flood-color="#ff0000" result="glowColor"/>
+      <feComposite in="glowColor" in2="blur" operator="in" result="softGlow"/>
+      <feComposite in="softGlow" in2="SourceGraphic" operator="over"/>
+    </filter>
+    
+    <!-- Dégradé de la planète -->
+    <radialGradient id="redPlanetGradient" cx="30%" cy="30%" r="70%" fx="20%" fy="20%">
+      <stop offset="0%" stop-color="#ff8a8a" />
+      <stop offset="40%" stop-color="#ff5757" />
+      <stop offset="80%" stop-color="#b30000" />
+      <stop offset="100%" stop-color="#800000" />
+    </radialGradient>
+    
+    <!-- Texture des cratères -->
+    <radialGradient id="craterGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#b30000" />
+      <stop offset="60%" stop-color="#800000" />
+      <stop offset="100%" stop-color="transparent" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Étoiles en arrière-plan -->
+  <g opacity="0.8">
+    <circle cx="20" cy="20" r="0.8" fill="white"/>
+    <circle cx="100" cy="25" r="1" fill="white"/>
+    <circle cx="110" cy="100" r="0.7" fill="white"/>
+    <circle cx="30" cy="90" r="0.9" fill="white"/>
+    <circle cx="80" cy="75" r="0.6" fill="white"/>
+    <circle cx="20" cy="115" r="0.8" fill="white"/>
+    <circle cx="115" cy="38" r="0.7" fill="white"/>
+  </g>
+  
+  <!-- Planète avec effet de lueur -->
+  <g filter="url(#redGlow)">
+    <circle cx="64" cy="64" r="42" fill="url(#redPlanetGradient)"/>
+  </g>
+  
+  <!-- Cratères -->
+  <g opacity="0.6">
+    <circle cx="48" cy="45" r="7" fill="url(#craterGradient)"/>
+    <circle cx="75" cy="50" r="5" fill="url(#craterGradient)"/>
+    <circle cx="70" cy="75" r="8" fill="url(#craterGradient)"/>
+    <circle cx="45" cy="68" r="4" fill="url(#craterGradient)"/>
+    <circle cx="60" cy="58" r="6" fill="url(#craterGradient)"/>
+    <circle cx="82" cy="65" r="4" fill="url(#craterGradient)"/>
+    <circle cx="55" cy="85" r="7" fill="url(#craterGradient)"/>
+  </g>
+  
+  <!-- Point lumineux -->
+  <circle cx="44" cy="44" r="15" fill="white" opacity="0.25"/>
+  
+  <!-- Ombre de profondeur -->
+  <circle cx="80" cy="80" r="35" fill="black" opacity="0.12"/>
+</svg> 
