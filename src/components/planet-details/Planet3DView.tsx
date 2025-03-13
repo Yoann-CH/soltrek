@@ -67,13 +67,13 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       planet.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
     };
     
-    // Gestionnaire d'événements pour les appareils tactiles - COMPLÈTEMENT DÉSACTIVÉ SUR MOBILE
+    // Gestionnaire d'événements pour les appareils tactiles
     const handleTouchMove = (e: TouchEvent) => {
-      // Sur mobile, ne jamais intervenir - laisser le défilement natif fonctionner
+      // Toujours permettre le défilement sur mobile quels que soient le nombre de doigts
       if (isMobile) return;
       
-      // Sur desktop uniquement, pour les interactions tactiles spécifiques
-      if (!planet || isScrolling || e.touches.length !== 1) return;
+      // Continuer seulement si c'est une manipulation intentionnelle du modèle 3D
+      if (e.touches.length !== 1) return;
       
       const touch = e.touches[0];
       const rect = planet.getBoundingClientRect();
@@ -89,7 +89,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       window.mouseX = touch.clientX;
       window.mouseY = touch.clientY;
       
-      // Ne pas prévenir le comportement par défaut sur mobile, jamais
+      // Ne jamais empêcher le défilement sur mobile, mais permettre la prévention sur les non-mobiles
       if (!isMobile && e.cancelable) {
         e.preventDefault();
       }
@@ -109,9 +109,8 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       }
     };
     
-    // Ajouter en mode passif=true sur mobile pour garantir le défilement
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchmove', handleTouchMove, { passive: isMobile });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {

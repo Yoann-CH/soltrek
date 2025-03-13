@@ -154,7 +154,7 @@ export default function PlanetDetailPage() {
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="min-h-screen relative overflow-hidden bg-black dark:bg-black text-gray-100 bg-cover bg-fixed"
+        className="min-h-screen relative overflow-x-hidden overflow-y-auto bg-black dark:bg-black text-gray-100 bg-cover bg-fixed touch-auto"
       >
         {/* Fond spatial ajouté ici */}
         <SpaceBackground starCount={150} planetCount={5} enableParallax={true} showNebulae={true} />
@@ -338,6 +338,20 @@ export default function PlanetDetailPage() {
         <Footer />
         <ScrollToTop />
       </motion.div>
+      <style>{`
+        @media (max-width: 768px) and (orientation: landscape) {
+          html, body {
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+          }
+          
+          .touch-auto {
+            touch-action: pan-y !important;
+            -webkit-overflow-scrolling: touch;
+          }
+        }
+      `}</style>
     </AnimatePresence>
   );
 } 
