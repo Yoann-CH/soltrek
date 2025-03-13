@@ -13,6 +13,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
   const starsContainerRef = useRef<HTMLDivElement>(null);
   const [initialTransform, setInitialTransform] = useState<string | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   
   // Précharger la texture
   useEffect(() => {
@@ -66,8 +67,12 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       planet.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
     };
     
-    // Gestionnaire d'événements pour les appareils tactiles
+    // Gestionnaire d'événements pour les appareils tactiles - COMPLÈTEMENT DÉSACTIVÉ SUR MOBILE
     const handleTouchMove = (e: TouchEvent) => {
+      // Sur mobile, ne jamais intervenir - laisser le défilement natif fonctionner
+      if (isMobile) return;
+      
+      // Sur desktop uniquement, pour les interactions tactiles spécifiques
       if (!planet || isScrolling || e.touches.length !== 1) return;
       
       const touch = e.touches[0];
@@ -84,8 +89,8 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       window.mouseX = touch.clientX;
       window.mouseY = touch.clientY;
       
-      // Empêcher le défilement de la page pendant la manipulation de la planète
-      if (e.cancelable) {
+      // Ne pas prévenir le comportement par défaut sur mobile, jamais
+      if (!isMobile && e.cancelable) {
         e.preventDefault();
       }
     };
@@ -104,8 +109,9 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       }
     };
     
+    // Ajouter en mode passif=true sur mobile pour garantir le défilement
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: isMobile });
     window.addEventListener('scroll', handleScroll, { passive: true });
     
     return () => {
@@ -113,7 +119,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [isTextureLoaded, textureName, initialTransform, isScrolling]);
+  }, [isTextureLoaded, textureName, initialTransform, isScrolling, isMobile]);
 
   // Réinitialiser la transformation après un défilement
   useEffect(() => {
@@ -203,7 +209,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
   
   return (
     <motion.div 
-      className="relative flex justify-center lg:col-span-2"
+      className={`relative flex justify-center lg:col-span-2 ${isMobile ? 'touch-action-auto' : ''}`}
       variants={planetVariants}
       layoutId={`planet-${planetName}`}
     >
@@ -213,7 +219,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       
       <div 
         ref={planetRef} 
-        className={`planet relative w-64 h-64 lg:w-96 lg:h-96 rounded-full transition-all duration-300 select-none ${isScrolling ? 'scrolling' : ''}`}
+        className={`planet relative w-64 h-64 lg:w-96 lg:h-96 rounded-full transition-all duration-300 select-none ${isScrolling ? 'scrolling' : ''} ${isMobile ? 'pointer-events-none' : ''}`}
         style={{ 
           '--planet-texture': isTextureLoaded 
             ? `url('/assets/textures/planets/${textureName}.jpg')`
@@ -325,6 +331,10 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
 
           .scrolling-stars .stars-container {
             transform: translateZ(0) !important;
+          }
+          
+          .touch-action-auto {
+            touch-action: auto !important;
           }
           
           @media (prefers-reduced-motion: reduce) {
