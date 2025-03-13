@@ -75,12 +75,6 @@ export default function SpaceBackground({
     
     // Effet de parallaxe pour le mouvement du fond
     if (enableParallax) {
-      // Détecter si l'appareil est mobile
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-      
-      // Ne pas appliquer le parallaxe sur mobile pour éviter les problèmes de défilement
-      if (isMobile) return;
-      
       const handleMouseMove = (e: MouseEvent) => {
         if (!parallaxRef.current) return;
         

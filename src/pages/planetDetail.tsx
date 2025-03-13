@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePlanetData, formatPlanetDataForDisplay } from '../lib/api';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
@@ -34,6 +34,7 @@ const planetTextureMap: Record<string, string> = {
 export default function PlanetDetailPage() {
   const { planetName } = useParams<{ planetName: string }>();
   const navigate = useNavigate();
+  const pageRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(() => {
     // Vérifier si l'utilisateur a déjà visité cette page de planète
     const hasVisitedPlanet = localStorage.getItem(`hasVisited_${planetName}`) === 'true';
@@ -76,6 +77,49 @@ export default function PlanetDetailPage() {
       return () => clearTimeout(timer);
     }
   }, [isLoading, planetName]);
+
+  // Scroll to top when component mounts or planetName changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [planetName]);
+
+  // Fix for touch scrolling on mobile landscape mode
+  useEffect(() => {
+    // Fonction pour empêcher les événements tactiles par défaut qui pourraient interférer avec le scroll
+    const preventDefaultForTouchEvents = (e: Event) => {
+      if (e.target && 
+          !(e.target as HTMLElement).closest('.planet-3d-view') && 
+          !(e.target as HTMLElement).closest('.interactive-element')) { 
+        e.stopPropagation();
+      }
+    };
+
+    // Ajouter les styles de débordement explicites pour assurer le défilement tactile
+    if (pageRef.current) {
+      const htmlElement = document.documentElement;
+      const bodyElement = document.body;
+      
+      // Assurer que le HTML et BODY peuvent défiler
+      htmlElement.style.overflowX = 'hidden';
+      htmlElement.style.overflowY = 'auto';
+      htmlElement.style.height = 'auto';
+      bodyElement.style.overflowX = 'hidden';
+      bodyElement.style.overflowY = 'auto';
+      bodyElement.style.height = 'auto';
+      bodyElement.style.touchAction = 'pan-y';
+      
+      // Assurer que notre conteneur principal est correctement configuré
+      pageRef.current.style.overflowY = 'auto';
+      pageRef.current.style.touchAction = 'pan-y';
+      // Pour iOS - utiliser une approche compatible TypeScript
+      (pageRef.current.style as unknown as Record<string, string>)['-webkit-overflow-scrolling'] = 'touch';
+    }
+
+    // Nettoyer
+    return () => {
+      document.removeEventListener('touchmove', preventDefaultForTouchEvents);
+    };
+  }, []);
   
   // Animation variants
   const containerVariants = {
@@ -149,12 +193,13 @@ export default function PlanetDetailPage() {
   return (
     <AnimatePresence mode="wait">
       <motion.div
+        ref={pageRef}
         key={normalizedPlanetName}
         variants={containerVariants}
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="min-h-screen relative overflow-x-hidden overflow-y-auto bg-black dark:bg-black text-gray-100 bg-cover bg-fixed touch-auto"
+        className="min-h-screen relative overflow-hidden bg-black dark:bg-black text-gray-100 bg-cover bg-fixed touch-manipulation"
       >
         {/* Fond spatial ajouté ici */}
         <SpaceBackground starCount={150} planetCount={5} enableParallax={true} showNebulae={true} />
@@ -166,7 +211,7 @@ export default function PlanetDetailPage() {
           backText="Retour" 
         />
         
-        <main className="max-w-7xl mx-auto py-8 sm:py-12 px-4 sm:px-6 md:px-8 relative z-10">
+        <main className="max-w-7xl mx-auto py-8 sm:py-12 px-4 sm:px-6 md:px-8 relative z-10 touch-auto">
           <div className="max-w-7xl mx-auto">
             {/* Section principale avec la planète 3D et les infos de base */}
             <ScrollAnimationContainer 
@@ -179,7 +224,7 @@ export default function PlanetDetailPage() {
               {/* Visualisation de la planète */}
               <ScrollAnimationContainer 
                 type="scale"
-                className="lg:col-span-2"
+                className="lg:col-span-2 planet-3d-view" // Ajout de la classe pour le sélecteur
                 triggerOnce={true}
                 threshold={0.2}
                 delay={100}
@@ -338,20 +383,6 @@ export default function PlanetDetailPage() {
         <Footer />
         <ScrollToTop />
       </motion.div>
-      <style>{`
-        @media (max-width: 768px) and (orientation: landscape) {
-          html, body {
-            overflow: auto;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-          }
-          
-          .touch-auto {
-            touch-action: pan-y !important;
-            -webkit-overflow-scrolling: touch;
-          }
-        }
-      `}</style>
     </AnimatePresence>
   );
 } 

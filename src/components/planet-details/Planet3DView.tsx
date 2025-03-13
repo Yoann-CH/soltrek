@@ -69,8 +69,8 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     
     // Gestionnaire d'événements pour les appareils tactiles
     const handleTouchMove = (e: TouchEvent) => {
-      // Toujours permettre le défilement sur mobile quels que soient le nombre de doigts
-      if (isMobile) return;
+      // Sur mobile, ne pas empêcher le défilement à un doigt
+      if (isMobile || !planet || isScrolling) return;
       
       // Continuer seulement si c'est une manipulation intentionnelle du modèle 3D
       if (e.touches.length !== 1) return;
@@ -89,7 +89,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       window.mouseX = touch.clientX;
       window.mouseY = touch.clientY;
       
-      // Ne jamais empêcher le défilement sur mobile, mais permettre la prévention sur les non-mobiles
+      // Ne pas empêcher le défilement sur mobile
       if (!isMobile && e.cancelable) {
         e.preventDefault();
       }
