@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { memo, useState, useEffect, useMemo } from 'react';
+import { memo, useState, useEffect, useMemo, useRef } from 'react';
 import { useLoading } from '../lib/loadingContext';
 
 // Définition des couleurs pour chaque planète
@@ -39,16 +39,41 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
   const textureName = planetTextureMap[name] || 'earth';
   const [isTextureLoaded, setIsTextureLoaded] = useState(false);
   const { appLoaded } = useLoading();
+  // Référence pour suivre si le composant est monté
+  const isMounted = useRef(true);
+  // Détecter si on est sur mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   // Préchargement optimisé des textures
   useEffect(() => {
     const img = new Image();
     img.src = `/assets/textures/planets/${textureName}.jpg`;
-    img.onload = () => setIsTextureLoaded(true);
+    
+    const handleLoad = () => {
+      if (isMounted.current) {
+        setIsTextureLoaded(true);
+      }
+    };
+    
+    img.addEventListener('load', handleLoad);
+    
+    // Si l'image est déjà en cache
+    if (img.complete) {
+      handleLoad();
+    }
+
+    // Nettoyer lors du démontage
+    return () => {
+      isMounted.current = false;
+      img.removeEventListener('load', handleLoad);
+    };
   }, [textureName]);
 
-  // Optimisation du suivi de souris avec RAF et debounce
+  // Optimisation du suivi de souris avec RAF et debounce - désactivé sur mobile
   useEffect(() => {
+    // Ne pas activer cette fonctionnalité sur mobile pour économiser des ressources
+    if (isMobile) return;
+
     let rafId: number;
     let lastUpdate = 0;
     const minInterval = 1000 / 30; // Limite à 30fps
@@ -78,7 +103,7 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
       document.removeEventListener('mousemove', handleMouseMove);
       cancelAnimationFrame(rafId);
     };
-  }, [name]);
+  }, [name, isMobile]);
 
   // Animation constants memoizés
   const animationProps = useMemo(() => ({
@@ -91,8 +116,9 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
     }
   }), [appLoaded, index]);
 
+  // Réduire l'échelle sur mobile pour éviter les problèmes de performance
   const hoverProps = useMemo(() => ({
-    whileHover: { 
+    whileHover: isMobile ? undefined : { 
       scale: 1.02,
       transition: { duration: 0.2 }
     },
@@ -100,11 +126,11 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
       scale: 0.98,
       transition: { duration: 0.1 }
     }
-  }), []);
+  }), [isMobile]);
 
-  // Optimisation des transitions d'animation infinies
+  // Optimisation des transitions d'animation infinies - réduites sur mobile
   const planetAnimProps = useMemo(() => ({
-    animate: { 
+    animate: isMobile ? undefined : { 
       y: [0, -4, 0],
       transition: { 
         duration: 4,
@@ -113,7 +139,7 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
         repeatType: "mirror" as const
       }
     }
-  }), []);
+  }), [isMobile]);
 
   const handleClick = () => {
     navigate(`/explore/${name.toLowerCase()}`);
@@ -125,17 +151,17 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
       {...hoverProps}
       onClick={handleClick}
       data-planet={name}
-      className="p-6 bg-gradient-to-br from-gray-50 to-white/80 dark:from-gray-900 dark:to-gray-800/90
+      className={`p-6 bg-gradient-to-br from-gray-50 to-white/80 dark:from-gray-900 dark:to-gray-800/90
                 rounded-xl shadow-lg backdrop-blur-md transition-colors
                 border border-white/20 dark:border-gray-700/50 
                 hover:border-blue-300/50 dark:hover:border-blue-500/50
                 hover:shadow-blue-200/30 dark:hover:shadow-blue-700/20
                 flex flex-col items-center cursor-pointer group relative overflow-hidden planet-card
-                h-full"
+                h-full ${isMobile ? 'mobile-planet-card' : ''}`}
       role="button"
       aria-label={`Explorer ${name}`}
       style={{
-        willChange: 'transform',
+        willChange: isMobile ? 'auto' : 'transform',
         transform: 'translateZ(0)',
         backfaceVisibility: 'hidden'
       }}
@@ -180,7 +206,7 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
               zIndex: -1,
               willChange: 'transform' // Optimisation GPU
             }}
-            {...planetAnimProps}
+            {...(isMobile ? {} : planetAnimProps)}
           />
         )}
         <motion.div 
@@ -189,9 +215,9 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
             boxShadow: `0 0 25px ${colors.glow}`,
             border: '1px solid rgba(255, 255, 255, 0.3)',
             zIndex: 1,
-            willChange: 'transform' // Optimisation GPU
+            willChange: isMobile ? 'auto' : 'transform' // Désactiver willChange sur mobile
           }}
-          {...planetAnimProps}
+          {...(isMobile ? {} : planetAnimProps)} // Désactiver l'animation sur mobile
         >
           <div 
             className="absolute inset-0 w-full h-full rounded-full"
@@ -199,10 +225,18 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
               backgroundImage: isTextureLoaded 
                 ? `url('/assets/textures/planets/${textureName}.jpg')`
                 : `radial-gradient(circle at 30% 30%, ${colors.main}, ${colors.shadow})`,
-              backgroundSize: '100% 100%',
-              backgroundPosition: 'center'
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
             }}
           />
+          
+          {/* Indicateur de chargement */}
+          {!isTextureLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+            </div>
+          )}
           
           {/* Effet de brillance */}
           <div 
@@ -249,7 +283,7 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
               zIndex: 2,
               willChange: 'transform' // Optimisation GPU
             }}
-            {...planetAnimProps}
+            {...(isMobile ? {} : planetAnimProps)}
           />
         )}
       </div>
@@ -273,22 +307,65 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
         </div>
       </div>
       
-      {/* Particules d'étoiles (effet visuel) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-        {[...Array(12)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-[2px] h-[2px] rounded-full bg-white animate-twinkle"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              opacity: 0.6 + Math.random() * 0.4,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${2 + Math.random() * 3}s`
-            }}
-          />
-        ))}
+      {/* Particules d'étoiles (effet visuel) - désactivées sur mobile */}
+      {!isMobile && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-[2px] h-[2px] rounded-full bg-white animate-twinkle"
+              style={{
+                top: `${Math.random() * 100}%`,
+                left: `${Math.random() * 100}%`,
+                opacity: 0.6 + Math.random() * 0.4,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${2 + Math.random() * 3}s`
+              }}
+            />
+          ))}
+        </div>
+      )}
+      
+      {/* Préchargement caché des textures */}
+      <div className="hidden">
+        <img 
+          src={`/assets/textures/planets/${textureName}.jpg`} 
+          alt={`Texture de ${name}`} 
+          onLoad={() => setIsTextureLoaded(true)}
+          aria-hidden="true"
+        />
       </div>
+      
+      {/* Style spécifique pour mobile */}
+      <style>
+        {`
+        @media (max-width: 767px) {
+          .mobile-planet-card {
+            contain: content !important;
+            content-visibility: auto;
+            transform: translateZ(0);
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            will-change: auto;
+          }
+          
+          .mobile-planet-card div {
+            transform: translateZ(0);
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+          }
+          
+          /* Assurer que les planètes restent visibles pendant le défilement */
+          .mobile-planet-card div[style*="background-image"] {
+            background-attachment: scroll !important;
+            background-repeat: no-repeat !important;
+            background-size: cover !important;
+            transform: translateZ(0) !important;
+            will-change: auto !important;
+          }
+        }
+        `}
+      </style>
     </motion.div>
   );
 });
