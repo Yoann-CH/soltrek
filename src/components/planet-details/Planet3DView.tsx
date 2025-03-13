@@ -69,8 +69,15 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     
     // Gestionnaire d'événements pour les appareils tactiles
     const handleTouchMove = (e: TouchEvent) => {
-      // Sur mobile, ne pas empêcher le défilement à un doigt
+      // Sur mobile, toujours permettre le défilement par défaut
       if (isMobile || !planet || isScrolling) return;
+      
+      // S'assurer que nous n'interrompons que les interactions avec le modèle 3D
+      const target = e.target as HTMLElement;
+      const isPlanetElement = target.closest('.planet') !== null;
+      
+      // Ne pas interférer si on n'est pas sur un élément de la planète
+      if (!isPlanetElement) return;
       
       // Continuer seulement si c'est une manipulation intentionnelle du modèle 3D
       if (e.touches.length !== 1) return;
@@ -88,11 +95,6 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       // Mettre à jour les variables globales de position
       window.mouseX = touch.clientX;
       window.mouseY = touch.clientY;
-      
-      // Ne pas empêcher le défilement sur mobile
-      if (!isMobile && e.cancelable) {
-        e.preventDefault();
-      }
     };
     
     // Gestionnaire de défilement pour réinitialiser la transformation
@@ -211,6 +213,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       className={`relative flex justify-center lg:col-span-2 ${isMobile ? 'touch-action-auto' : ''}`}
       variants={planetVariants}
       layoutId={`planet-${planetName}`}
+      style={{ touchAction: 'pan-y' }}
     >
       <div className="absolute -z-10 inset-0 flex items-center justify-center opacity-80">
         <div className="w-full h-full max-w-md max-h-md rounded-full bg-gradient-to-r from-blue-600/30 to-purple-600/30 dark:from-blue-600 dark:to-purple-600 blur-[100px]"></div>

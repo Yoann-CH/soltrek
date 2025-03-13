@@ -80,44 +80,79 @@ export default function PlanetDetailPage() {
 
   // Scroll to top when component mounts or planetName changes
   useEffect(() => {
+    // Scroll to top immediately
     window.scrollTo(0, 0);
+    
+    // Force une deuxième fois avec un délai pour s'assurer que le comportement est cohérent
+    const timer = setTimeout(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'auto'
+      });
+    }, 50);
+    
+    return () => clearTimeout(timer);
   }, [planetName]);
 
   // Fix for touch scrolling on mobile landscape mode
   useEffect(() => {
-    // Fonction pour empêcher les événements tactiles par défaut qui pourraient interférer avec le scroll
-    const preventDefaultForTouchEvents = (e: Event) => {
-      if (e.target && 
-          !(e.target as HTMLElement).closest('.planet-3d-view') && 
-          !(e.target as HTMLElement).closest('.interactive-element')) { 
-        e.stopPropagation();
-      }
-    };
-
-    // Ajouter les styles de débordement explicites pour assurer le défilement tactile
-    if (pageRef.current) {
-      const htmlElement = document.documentElement;
-      const bodyElement = document.body;
-      
-      // Assurer que le HTML et BODY peuvent défiler
-      htmlElement.style.overflowX = 'hidden';
-      htmlElement.style.overflowY = 'auto';
-      htmlElement.style.height = 'auto';
-      bodyElement.style.overflowX = 'hidden';
-      bodyElement.style.overflowY = 'auto';
-      bodyElement.style.height = 'auto';
-      bodyElement.style.touchAction = 'pan-y';
-      
-      // Assurer que notre conteneur principal est correctement configuré
-      pageRef.current.style.overflowY = 'auto';
-      pageRef.current.style.touchAction = 'pan-y';
-      // Pour iOS - utiliser une approche compatible TypeScript
-      (pageRef.current.style as unknown as Record<string, string>)['-webkit-overflow-scrolling'] = 'touch';
-    }
-
-    // Nettoyer
+    // S'assurer que la page est en mode de défilement normal
+    document.documentElement.style.overflowY = 'auto';
+    document.body.style.overflowY = 'auto';
+    document.documentElement.style.height = 'auto';
+    document.body.style.height = 'auto';
+    
+    // Appliquer touch-action globalement
+    document.documentElement.style.touchAction = 'manipulation';
+    document.body.style.touchAction = 'manipulation';
+    
+    // Ajouter une classe CSS au body pour améliorer le défilement tactile
+    document.body.classList.add('touch-scrolling-enabled');
+    
+    // Nettoyer lors du démontage
     return () => {
-      document.removeEventListener('touchmove', preventDefaultForTouchEvents);
+      document.body.classList.remove('touch-scrolling-enabled');
+    };
+  }, []);
+
+  // Définir un style global pour améliorer le défilement tactile
+  useEffect(() => {
+    // Créer une feuille de style pour les règles globales
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      body.touch-scrolling-enabled {
+        -webkit-overflow-scrolling: touch !important;
+        overflow-y: auto !important;
+        height: auto !important;
+        position: static !important;
+        touch-action: pan-y !important;
+      }
+      
+      /* S'assurer que tous les conteneurs principaux permettent le défilement */
+      .overflow-hidden {
+        overflow-x: hidden !important;
+      }
+      
+      /* Styles spécifiques pour iOS */
+      @supports (-webkit-touch-callout: none) {
+        body.touch-scrolling-enabled {
+          touch-action: pan-y !important;
+          -webkit-overflow-scrolling: touch !important;
+        }
+      }
+      
+      /* Désactiver les événements pointer sur la planète 3D en vue paysage */
+      @media (orientation: landscape) and (max-width: 1024px) {
+        .planet-3d-view {
+          pointer-events: none !important;
+        }
+      }
+    `;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      // Nettoyer lors du démontage
+      document.head.removeChild(styleElement);
     };
   }, []);
   
