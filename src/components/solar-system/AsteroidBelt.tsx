@@ -2,12 +2,63 @@ import { useRef, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { generateAsteroidTexture } from '../../utils/textureGenerator';
+import { QualitySettings } from './types';
+
+// Interface pour les props de la ceinture d'astéroïdes
+interface AsteroidBeltProps {
+  count?: number;
+  qualitySettings?: QualitySettings;
+}
 
 // Composant pour la ceinture d'astéroïdes
-export function AsteroidBelt({ count = 1000 }: { count?: number }) {
+export function AsteroidBelt({ count = 1000, qualitySettings }: AsteroidBeltProps) {
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
   const animationFrameRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
+  
+  // Déterminer le niveau de détail géométrique en fonction de la qualité
+  const geometryDetail = useMemo(() => {
+    if (!qualitySettings) return 0; // Valeur par défaut
+    
+    // Niveau de détail basé sur la qualité
+    switch (qualitySettings.planetDetail) {
+      case 16: return 0; // Low quality - dodécaèdre simple
+      case 32: return 1; // Medium quality - dodécaèdre avec une subdivision
+      case 64: return 2; // High quality - dodécaèdre avec deux subdivisions
+      default: return 0;
+    }
+  }, [qualitySettings]);
+  
+  // Créer une géométrie partagée et mémorisée pour tous les astéroïdes
+  const geometry = useMemo(() => {
+    return new THREE.DodecahedronGeometry(1, geometryDetail);
+  }, [geometryDetail]);
+  
+  // Nombre d'astéroïdes à animer par frame
+  const asteroidsPerFrame = useMemo(() => {
+    if (!qualitySettings) return count / 4;
+    
+    // Réduire le nombre d'astéroïdes à animer par frame pour les qualités basses
+    switch (qualitySettings.planetDetail) {
+      case 16: return Math.max(1, Math.floor(count / 6)); // Moins d'astéroïdes animés en basse qualité
+      case 32: return Math.max(1, Math.floor(count / 4)); // Nombre modéré en qualité moyenne
+      case 64: return Math.max(1, Math.floor(count / 3)); // Plus d'astéroïdes animés en haute qualité
+      default: return Math.max(1, Math.floor(count / 4));
+    }
+  }, [count, qualitySettings]);
+  
+  // Fréquence de mise à jour (FPS cible basé sur la qualité)
+  const targetFps = useMemo(() => {
+    if (!qualitySettings) return 30;
+    
+    // Adapter la fréquence d'animation en fonction de la qualité
+    switch (qualitySettings.planetDetail) {
+      case 16: return 20; // 20 FPS en basse qualité
+      case 32: return 30; // 30 FPS en qualité moyenne
+      case 64: return 60; // 60 FPS en haute qualité
+      default: return 30;
+    }
+  }, [qualitySettings]);
   
   // Générer la ceinture d'astéroïdes avec le parametrage selon la prop count
   const asteroidsData = useMemo(() => {
@@ -82,21 +133,17 @@ export function AsteroidBelt({ count = 1000 }: { count?: number }) {
       map: texture,
       roughness: 0.9,
       metalness: 0.1,
-      flatShading: true
+      flatShading: qualitySettings?.planetDetail !== 64 // Désactiver le flat shading en haute qualité
     });
-  }, []);
-  
-  // Créer une géométrie partagée et mémorisée pour tous les astéroïdes
-  const geometry = useMemo(() => {
-    return new THREE.DodecahedronGeometry(1, 0);
-  }, []);
+  }, [qualitySettings?.planetDetail]);
 
   // Animer les astéroïdes avec une logique d'optimisation
   const animateAsteroids = useCallback((time: number) => {
-    // Limiter les mises à jour à 30 FPS pour économiser les ressources
+    // Limiter les mises à jour selon la fréquence cible
     const deltaTime = time - lastTimeRef.current;
+    const frameTime = 1000 / targetFps;
     
-    if (deltaTime < (1000 / 30)) { // ~33ms pour 30fps
+    if (deltaTime < frameTime) { 
       // Pas besoin de mettre à jour, attendre le prochain frame
       animationFrameRef.current = requestAnimationFrame(animateAsteroids);
       return;
@@ -106,11 +153,10 @@ export function AsteroidBelt({ count = 1000 }: { count?: number }) {
     lastTimeRef.current = time;
 
     if (instancedMeshRef.current) {
-      const asteroidUpdate = Math.max(1, Math.floor(asteroidsData.asteroidData.length / 4));
-      const startIndex = Math.floor(Math.random() * (asteroidsData.asteroidData.length - asteroidUpdate));
+      const startIndex = Math.floor(Math.random() * (asteroidsData.asteroidData.length - asteroidsPerFrame));
       
-      // N'animer qu'un quart des astéroïdes à chaque frame
-      for (let i = startIndex; i < startIndex + asteroidUpdate; i++) {
+      // N'animer qu'un sous-ensemble des astéroïdes à chaque frame
+      for (let i = startIndex; i < startIndex + asteroidsPerFrame; i++) {
         const idx = i % asteroidsData.asteroidData.length;
         const asteroid = asteroidsData.asteroidData[idx];
         
@@ -139,7 +185,7 @@ export function AsteroidBelt({ count = 1000 }: { count?: number }) {
     
     // Planifier le prochain frame
     animationFrameRef.current = requestAnimationFrame(animateAsteroids);
-  }, [asteroidsData]);
+  }, [asteroidsData, asteroidsPerFrame, targetFps]);
 
   // Démarrer l'animation et nettoyer
   useFrame(() => {
@@ -158,8 +204,8 @@ export function AsteroidBelt({ count = 1000 }: { count?: number }) {
     <instancedMesh
       ref={instancedMeshRef}
       args={[geometry, undefined, asteroidsData.matrices.length]}
-      receiveShadow
-      castShadow
+      receiveShadow={qualitySettings?.shadowsEnabled !== false}
+      castShadow={qualitySettings?.shadowsEnabled !== false}
       material={material}
     />
   );

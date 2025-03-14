@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 interface PlanetDataGridProps {
   diameter: string;
@@ -58,26 +58,28 @@ export function PlanetDataGrid({
   density,
   gravity 
 }: PlanetDataGridProps) {
+  const prefersReducedMotion = useReducedMotion();
+  
+  // Simplifiaction des variants d'animation pour améliorer les performances
   const gridVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.08,
-        delayChildren: 0.05
+        staggerChildren: 0.05, // Réduit le délai entre les éléments
+        delayChildren: 0.02
       }
     }
   };
   
   const itemVariants = {
-    hidden: { opacity: 0, y: 15, scale: 0.95 },
+    hidden: { opacity: 0, y: 10 },
     visible: { 
       opacity: 1, 
-      y: 0, 
-      scale: 1,
+      y: 0,
       transition: {
-        duration: 0.5,
-        ease: [0.22, 1, 0.36, 1]
+        duration: 0.3,
+        ease: "easeOut"
       }
     }
   };
@@ -85,16 +87,96 @@ export function PlanetDataGrid({
   // Formater la masse pour l'affichage
   const formattedMass = formatLargeNumber(mass);
 
+  // Version sans animation pour les utilisateurs préférant des animations réduites
+  if (prefersReducedMotion) {
+    return (
+      <div className="relative">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 bg-gradient-to-br from-blue-50/80 to-purple-50/80 dark:from-blue-950/20 dark:to-purple-950/20 p-6 rounded-xl border border-blue-200/50 dark:border-blue-500/20 backdrop-blur-sm overflow-hidden">
+          {/* Effet de bordure gauche qui respecte la courbure */}
+          <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-blue-500/50 via-purple-500/50 to-transparent rounded-l-xl"></div>
+          
+          <div>
+            <DataItem 
+              label="Diamètre" 
+              value={diameter} 
+              color="blue"
+            />
+          </div>
+          
+          <div>
+            <DataItem 
+              label="Distance du Soleil" 
+              value={distance}
+              color="blue" 
+            />
+          </div>
+          
+          <div>
+            <DataItem 
+              label="Durée du jour" 
+              value={dayLength}
+              color="purple" 
+            />
+          </div>
+          
+          <div>
+            <DataItem 
+              label="Durée de l'année" 
+              value={yearLength}
+              color="purple" 
+            />
+          </div>
+          
+          <div>
+            <DataItem 
+              label="Masse" 
+              value={formattedMass}
+              color="blue"
+              isLargeValue={formattedMass !== mass}
+            />
+          </div>
+          
+          <div>
+            <DataItem 
+              label="Température moyenne" 
+              value={temperature}
+              color="blue" 
+            />
+          </div>
+          
+          <div>
+            <DataItem 
+              label="Densité" 
+              value={density}
+              color="purple" 
+            />
+          </div>
+          
+          <div>
+            <DataItem 
+              label="Gravité de surface" 
+              value={gravity}
+              color="purple" 
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div 
       variants={gridVariants}
+      initial="hidden"
+      animate="visible"
       className="relative"
+      style={{ willChange: 'transform' }}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 bg-gradient-to-br from-blue-50/80 to-purple-50/80 dark:from-blue-950/20 dark:to-purple-950/20 p-6 rounded-xl border border-blue-200/50 dark:border-blue-500/20 backdrop-blur-sm overflow-hidden">
         {/* Effet de bordure gauche qui respecte la courbure */}
         <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-blue-500/50 via-purple-500/50 to-transparent rounded-l-xl"></div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Diamètre" 
             value={diameter} 
@@ -102,7 +184,7 @@ export function PlanetDataGrid({
           />
         </motion.div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Distance du Soleil" 
             value={distance}
@@ -110,7 +192,7 @@ export function PlanetDataGrid({
           />
         </motion.div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Durée du jour" 
             value={dayLength}
@@ -118,7 +200,7 @@ export function PlanetDataGrid({
           />
         </motion.div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Durée de l'année" 
             value={yearLength}
@@ -126,7 +208,7 @@ export function PlanetDataGrid({
           />
         </motion.div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Masse" 
             value={formattedMass}
@@ -135,7 +217,7 @@ export function PlanetDataGrid({
           />
         </motion.div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Température moyenne" 
             value={temperature}
@@ -143,7 +225,7 @@ export function PlanetDataGrid({
           />
         </motion.div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Densité" 
             value={density}
@@ -151,7 +233,7 @@ export function PlanetDataGrid({
           />
         </motion.div>
         
-        <motion.div variants={itemVariants} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: "spring", stiffness: 400 }}>
+        <motion.div variants={itemVariants} whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 300 }}>
           <DataItem 
             label="Gravité de surface" 
             value={gravity}

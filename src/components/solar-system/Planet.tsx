@@ -87,7 +87,7 @@ const PlanetLabel = memo(({ position, name }: { position: [number, number, numbe
 PlanetLabel.displayName = 'PlanetLabel';
 
 // Composant pour une planète
-export const Planet = memo(function Planet({ radius, distance, texturePath, hasRings, name, index, planet }: PlanetProps) {
+export const Planet = memo(function Planet({ radius, distance, texturePath, hasRings, name, index, planet, qualitySettings }: PlanetProps) {
   const planetRef = useRef<THREE.Mesh>(null);
   const planetGroupRef = useRef<THREE.Group>(null);
   const ringsRef = useRef<THREE.Mesh>(null);
@@ -225,9 +225,24 @@ export const Planet = memo(function Planet({ radius, distance, texturePath, hasR
   });
 
   // Mémoriser les arguments pour les géométries
-  const sphereGeometryArgs = useMemo(() => [radius, 64, 64] as [number, number, number], [radius]);
-  const atmosphereGeometryArgs = useMemo(() => [radius * 1.05, 32, 32] as [number, number, number], [radius]);
-  const ringsGeometryArgs = useMemo(() => [radius * 1.4, radius * 2.2, 64] as [number, number, number], [radius]);
+  const sphereGeometryArgs = useMemo(() => {
+    // Utiliser les paramètres de qualité s'ils sont disponibles
+    const detail = qualitySettings?.planetDetail || 32; // Valeur par défaut si non spécifiée
+    return [radius, detail, detail] as [number, number, number];
+  }, [radius, qualitySettings?.planetDetail]);
+  
+  const atmosphereGeometryArgs = useMemo(() => {
+    // Utiliser les paramètres de qualité s'ils sont disponibles
+    const detail = qualitySettings?.planetDetail || 32; // Valeur par défaut si non spécifiée
+    return [radius * 1.05, detail / 2, detail / 2] as [number, number, number];
+  }, [radius, qualitySettings?.planetDetail]);
+  
+  const ringsGeometryArgs = useMemo(() => {
+    // Utiliser les paramètres de qualité s'ils sont disponibles
+    const detail = qualitySettings?.planetDetail || 32; // Valeur par défaut si non spécifiée
+    return [radius * 1.4, radius * 2.2, detail] as [number, number, number];
+  }, [radius, qualitySettings?.planetDetail]);
+  
   const labelPosition = useMemo<[number, number, number]>(() => [0, radius + 0.5, 0], [radius]);
 
   return (
@@ -249,7 +264,7 @@ export const Planet = memo(function Planet({ radius, distance, texturePath, hasR
         <mesh 
           ref={planetRef} 
           castShadow 
-          receiveShadow
+          receiveShadow={qualitySettings?.shadowsEnabled !== false}
           onClick={handlePlanetClick}
           onPointerOver={() => document.body.style.cursor = 'pointer'}
           onPointerOut={() => document.body.style.cursor = 'auto'}
@@ -260,7 +275,12 @@ export const Planet = memo(function Planet({ radius, distance, texturePath, hasR
         
         {/* Anneaux pour Saturne */}
         {hasRings && ringsMaterial && (
-          <mesh ref={ringsRef} receiveShadow castShadow rotation={[Math.PI / 2, 0, 0]}>
+          <mesh 
+            ref={ringsRef} 
+            receiveShadow={qualitySettings?.shadowsEnabled !== false} 
+            castShadow={qualitySettings?.shadowsEnabled !== false} 
+            rotation={[Math.PI / 2, 0, 0]}
+          >
             <ringGeometry args={ringsGeometryArgs} />
             <primitive object={ringsMaterial} attach="material" />
           </mesh>

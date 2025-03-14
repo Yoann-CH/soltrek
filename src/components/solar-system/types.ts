@@ -25,6 +25,20 @@ export interface PlanetData {
   cloudTexturePath?: string;
 }
 
+// Interface pour les paramètres de qualité
+export interface QualitySettings {
+  dpr: [number, number];
+  starsCount: number;
+  usePostProcessing: boolean;
+  drawDistance: number;
+  asteroidsCount: number;
+  frameloop: 'always' | 'demand' | 'never';
+  planetDetail: number;
+  textureQuality: number;
+  shadowsEnabled: boolean;
+  atmosphereQuality: string;
+}
+
 // Props pour le composant Planet
 export interface PlanetProps {
   radius: number;
@@ -34,6 +48,7 @@ export interface PlanetProps {
   name: string;
   index: number;
   planet: PlanetData;
+  qualitySettings?: QualitySettings;
 }
 
 // Props pour le composant PlanetOrbit
@@ -55,6 +70,7 @@ export interface DateDisplayProps {
   showDatePicker: boolean;
   toggleDatePicker: () => void;
   isLiveDate?: boolean;
+  isFullscreen?: boolean;
 }
 
 // Contexte du système solaire

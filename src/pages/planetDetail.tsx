@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { usePlanetData, formatPlanetDataForDisplay } from '../lib/api';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
@@ -35,6 +35,8 @@ export default function PlanetDetailPage() {
   const { planetName } = useParams<{ planetName: string }>();
   const navigate = useNavigate();
   const pageRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
+  
   const [isLoading, setIsLoading] = useState(() => {
     // Vérifier si l'utilisateur a déjà visité cette page de planète
     const hasVisitedPlanet = localStorage.getItem(`hasVisited_${planetName}`) === 'true';
@@ -78,23 +80,32 @@ export default function PlanetDetailPage() {
     }
   }, [isLoading, planetName]);
 
-  // Scroll to top when component mounts or planetName changes
-  useEffect(() => {
-    // Scroll to top immediately
-    window.scrollTo(0, 0);
+  // Scroll to top when component mounts or planetName changes - optimisé pour de meilleures performances
+  const scrollToTop = useCallback(() => {
+    // Scroll to top immediately with hardware acceleration
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth'
+    });
     
-    // Force une deuxième fois avec un délai pour s'assurer que le comportement est cohérent
+    // Force a second scroll with a small delay to ensure consistency
     const timer = setTimeout(() => {
       window.scrollTo({
         top: 0,
+        left: 0,
         behavior: 'auto'
       });
     }, 50);
     
     return () => clearTimeout(timer);
-  }, [planetName]);
+  }, [prefersReducedMotion]);
+  
+  useEffect(() => {
+    scrollToTop();
+  }, [planetName, scrollToTop]);
 
-  // Fix for touch scrolling on mobile landscape mode
+  // Fix for touch scrolling on mobile landscape mode - optimisé pour de meilleures performances
   useEffect(() => {
     // S'assurer que la page est en mode de défilement normal
     document.documentElement.style.overflowY = 'auto';
@@ -115,7 +126,7 @@ export default function PlanetDetailPage() {
     };
   }, []);
 
-  // Définir un style global pour améliorer le défilement tactile
+  // Définir un style global pour améliorer le défilement tactile - maintenant avec des règles d'optimisation
   useEffect(() => {
     // Créer une feuille de style pour les règles globales
     const styleElement = document.createElement('style');
@@ -147,6 +158,22 @@ export default function PlanetDetailPage() {
           pointer-events: none !important;
         }
       }
+      
+      /* Optimisations GPU */
+      .will-change-transform {
+        will-change: transform;
+        transform: translateZ(0);
+      }
+      
+      /* Réduire les animations pour les dispositifs à faible performance */
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
     `;
     document.head.appendChild(styleElement);
     
@@ -156,34 +183,67 @@ export default function PlanetDetailPage() {
     };
   }, []);
   
-  // Animation variants
+  // Animation variants - simplifiés pour de meilleures performances
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.12,
-        delayChildren: 0.1,
+        staggerChildren: 0.08, // Réduit le décalage entre les enfants
+        delayChildren: 0.05,
         when: "beforeChildren",
-        duration: 0.8,
-        ease: [0.22, 1, 0.36, 1]
+        duration: 0.5, // Réduit la durée de l'animation
+        ease: "easeOut" // Courbe d'accélération simplifiée
       }
     },
     exit: {
       opacity: 0,
-      filter: "blur(12px)",
       transition: { 
-        duration: 0.5,
-        ease: [0.43, 0.13, 0.23, 0.96]
+        duration: 0.3, // Réduit la durée de sortie
+        ease: "easeIn"
       }
     }
   };
+  
+  // Ajuster les paramètres pour les appareils à faible performance ou les préférences d'animation réduites
+  const getOptimizedProps = () => {
+    // Si l'utilisateur préfère les animations réduites, utiliser des configurations optimisées
+    if (prefersReducedMotion) {
+      return {
+        starCount: 40, // Moins d'étoiles
+        planetCount: 0, // Pas de planètes aléatoires
+        enableParallax: false, // Désactiver le parallaxe
+        showNebulae: false, // Pas de nébuleuses en arrière-plan
+        duration: 0.2, // Animations plus rapides
+        triggerOnce: true, // Déclencher les animations une seule fois
+        gpuRender: true // Forcer le rendu GPU
+      };
+    }
+    
+    // Configuration standard pour les appareils performants
+    return {
+      starCount: 150,
+      planetCount: 5,
+      enableParallax: true,
+      showNebulae: true,
+      duration: 0.4,
+      triggerOnce: true,
+      gpuRender: true
+    };
+  };
+  
+  const optimizedProps = getOptimizedProps();
   
   // Afficher le squelette de chargement
   if (isLoading || isApiLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden">
-        <SpaceBackground starCount={80} planetCount={1} enableParallax={false} showNebulae={false} />
+        <SpaceBackground 
+          starCount={optimizedProps.starCount / 2} 
+          planetCount={0} 
+          enableParallax={false} 
+          showNebulae={false} 
+        />
         <div className="text-center relative z-10">
           <div className="w-32 h-32 mx-auto rounded-full bg-gray-800 animate-pulse 
                           relative before:absolute before:content-[''] before:inset-0 before:rounded-full 
@@ -201,7 +261,12 @@ export default function PlanetDetailPage() {
   if (apiError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
-        <SpaceBackground starCount={80} planetCount={2} enableParallax={true} showNebulae={false} />
+        <SpaceBackground 
+          starCount={optimizedProps.starCount / 2} 
+          planetCount={1} 
+          enableParallax={false} 
+          showNebulae={false} 
+        />
         <div className="text-center p-6 max-w-md bg-red-900/20 rounded-lg border border-red-500/30 backdrop-blur-sm relative z-10">
           <div className="mb-4 text-red-500 text-6xl">
             <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -225,6 +290,100 @@ export default function PlanetDetailPage() {
   
   if (!displayData) return null;
   
+  // Version sans animation pour les préférences d'animation réduites
+  if (prefersReducedMotion) {
+    return (
+      <div className="min-h-screen relative overflow-hidden bg-black dark:bg-black text-gray-100 bg-cover bg-fixed touch-manipulation">
+        <SpaceBackground 
+          starCount={optimizedProps.starCount} 
+          planetCount={optimizedProps.planetCount} 
+          enableParallax={optimizedProps.enableParallax} 
+          showNebulae={optimizedProps.showNebulae} 
+        />
+        
+        <Header 
+          pageName={normalizedPlanetName.toLowerCase()} 
+          showBackButton={true} 
+          backTo="/explore" 
+          backText="Retour" 
+        />
+        
+        <main className="max-w-7xl mx-auto py-8 sm:py-12 px-4 sm:px-6 md:px-8 relative z-10 touch-auto">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12 items-center mb-20">
+              <div className="lg:col-span-2 planet-3d-view">
+                <Planet3DView 
+                  planetName={normalizedPlanetName}
+                  textureName={textureName}
+                  color={displayData.color}
+                />
+              </div>
+              
+              <div className="lg:col-span-3 space-y-8">
+                <PlanetHeader 
+                  planetName={normalizedPlanetName}
+                  description={displayData.description}
+                  moons={displayData.moons}
+                  bodyType={displayData.bodyType}
+                />
+                
+                <PlanetDataGrid 
+                  diameter={displayData.diameter}
+                  distance={displayData.distance}
+                  dayLength={displayData.dayLength}
+                  yearLength={displayData.yearLength}
+                  mass={displayData.mass}
+                  temperature={displayData.temperature}
+                  density={displayData.density}
+                  gravity={displayData.gravity}
+                />
+                
+                <PlanetComposition 
+                  composition={displayData.composition}
+                />
+                
+                <PlanetFunFact 
+                  funFact={displayData.funFact}
+                  planetName={normalizedPlanetName}
+                />
+              </div>
+            </div>
+            
+            <div className="mb-20">
+              <PlanetStats
+                inclination={displayData.inclination}
+                eccentricity={displayData.eccentricity}
+                escapeVelocity={displayData.escapeVelocity}
+                discoveredBy={displayData.discoveredBy}
+                discoveryDate={displayData.discoveryDate}
+                axialTilt={displayData.axialTilt}
+              />
+            </div>
+            
+            <div className="mb-20">
+              <PlanetFeatures planetName={normalizedPlanetName} />
+            </div>
+
+            <div className="mb-20">
+              <PlanetNews planetName={normalizedPlanetName} />
+            </div>
+            
+            <div className="pb-12">
+              <PlanetNavigation 
+                planetNames={planetTextureMap}
+                currentPlanet={normalizedPlanetName}
+              />
+            </div>
+          </div>
+        </main>
+        
+        <Footer />
+        <ScrollToTop />
+      </div>
+    );
+  }
+  
+  // Version avec animations pour les utilisateurs standard
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -235,9 +394,14 @@ export default function PlanetDetailPage() {
         animate="visible"
         exit="exit"
         className="min-h-screen relative overflow-hidden bg-black dark:bg-black text-gray-100 bg-cover bg-fixed touch-manipulation"
+        style={{ willChange: 'transform, opacity' }}
       >
-        {/* Fond spatial ajouté ici */}
-        <SpaceBackground starCount={150} planetCount={5} enableParallax={true} showNebulae={true} />
+        <SpaceBackground 
+          starCount={optimizedProps.starCount} 
+          planetCount={optimizedProps.planetCount} 
+          enableParallax={optimizedProps.enableParallax} 
+          showNebulae={optimizedProps.showNebulae} 
+        />
         
         <Header 
           pageName={normalizedPlanetName.toLowerCase()} 
@@ -252,18 +416,20 @@ export default function PlanetDetailPage() {
             <ScrollAnimationContainer 
               type="fadeUp"
               className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12 items-center mb-20"
-              triggerOnce={true}
+              triggerOnce={optimizedProps.triggerOnce}
               threshold={0.1}
               rootMargin="100px 0px"
             >
               {/* Visualisation de la planète */}
               <ScrollAnimationContainer 
                 type="scale"
-                className="lg:col-span-2 planet-3d-view" // Ajout de la classe pour le sélecteur
-                triggerOnce={true}
+                className="lg:col-span-2 planet-3d-view"
+                triggerOnce={optimizedProps.triggerOnce}
                 threshold={0.2}
-                delay={100}
+                delay={50}
                 exitAnimation={false}
+                gpuRender={optimizedProps.gpuRender}
+                duration={optimizedProps.duration}
               >
                 <Planet3DView 
                   planetName={normalizedPlanetName}
@@ -276,17 +442,21 @@ export default function PlanetDetailPage() {
               <ScrollAnimationContainer 
                 type="slideLeft"
                 className="lg:col-span-3 space-y-8"
-                triggerOnce={true}
+                triggerOnce={optimizedProps.triggerOnce}
                 threshold={0.2}
-                delay={100}
+                delay={50}
                 exitAnimation={false}
+                gpuRender={optimizedProps.gpuRender}
+                duration={optimizedProps.duration}
               >
                 <ScrollAnimationContainer 
                   type="fadeUp"
-                  delay={150}
-                  triggerOnce={true}
+                  delay={50}
+                  triggerOnce={optimizedProps.triggerOnce}
                   threshold={0.2}
                   exitAnimation={false}
+                  gpuRender={optimizedProps.gpuRender}
+                  duration={optimizedProps.duration}
                 >
                   <PlanetHeader 
                     planetName={normalizedPlanetName}
@@ -298,10 +468,12 @@ export default function PlanetDetailPage() {
                 
                 <ScrollAnimationContainer 
                   type="fadeUp"
-                  delay={200}
-                  triggerOnce={true}
+                  delay={100}
+                  triggerOnce={optimizedProps.triggerOnce}
                   threshold={0.1}
                   exitAnimation={false}
+                  gpuRender={optimizedProps.gpuRender}
+                  duration={optimizedProps.duration}
                 >
                   <PlanetDataGrid 
                     diameter={displayData.diameter}
@@ -317,10 +489,12 @@ export default function PlanetDetailPage() {
                 
                 <ScrollAnimationContainer 
                   type="fadeUp"
-                  delay={250}
-                  triggerOnce={true}
+                  delay={150}
+                  triggerOnce={optimizedProps.triggerOnce}
                   threshold={0.1}
                   exitAnimation={false}
+                  gpuRender={optimizedProps.gpuRender}
+                  duration={optimizedProps.duration}
                 >
                   <PlanetComposition 
                     composition={displayData.composition}
@@ -330,10 +504,12 @@ export default function PlanetDetailPage() {
                 <ScrollAnimationContainer 
                   type="fadeUp"
                   className="shadow-lg shadow-blue-500/5"
-                  delay={300}
-                  triggerOnce={true}
+                  delay={200}
+                  triggerOnce={optimizedProps.triggerOnce}
                   threshold={0.1}
                   exitAnimation={false}
+                  gpuRender={optimizedProps.gpuRender}
+                  duration={optimizedProps.duration}
                 >
                   <PlanetFunFact 
                     funFact={displayData.funFact}
@@ -347,10 +523,12 @@ export default function PlanetDetailPage() {
             <ScrollAnimationContainer 
               type="fadeUp"
               className="mb-20"
-              triggerOnce={false}
+              triggerOnce={optimizedProps.triggerOnce}
               threshold={0.1}
               rootMargin="150px 0px"
-              exitAnimation={true}
+              exitAnimation={false}
+              gpuRender={optimizedProps.gpuRender}
+              duration={optimizedProps.duration}
             >
               <PlanetStats
                 inclination={displayData.inclination}
@@ -362,18 +540,18 @@ export default function PlanetDetailPage() {
               />
             </ScrollAnimationContainer>
             
-            {/* Nouvelles sections: Caractéristiques importantes de la planète */}
+            {/* Caractéristiques importantes de la planète */}
             <ScrollAnimationContainer 
               type="fadeUp"
               className="mb-20"
-              triggerOnce={true}
+              triggerOnce={optimizedProps.triggerOnce}
               threshold={0.1}
               rootMargin="150px 0px"
               exitAnimation={false}
               disableOnLowEnd={true}
               force3d={true}
-              gpuRender={true}
-              duration={0.4}
+              gpuRender={optimizedProps.gpuRender}
+              duration={optimizedProps.duration}
             >
               <PlanetFeatures planetName={normalizedPlanetName} />
             </ScrollAnimationContainer>
@@ -382,14 +560,14 @@ export default function PlanetDetailPage() {
             <ScrollAnimationContainer 
               type="fadeUp"
               className="mb-20"
-              triggerOnce={true}
+              triggerOnce={optimizedProps.triggerOnce}
               threshold={0.1}
               rootMargin="150px 0px"
               exitAnimation={false}
               disableOnLowEnd={true}
               force3d={true}
-              gpuRender={true}
-              duration={0.4}
+              gpuRender={optimizedProps.gpuRender}
+              duration={optimizedProps.duration}
             >
               <PlanetNews planetName={normalizedPlanetName} />
             </ScrollAnimationContainer>
@@ -398,14 +576,14 @@ export default function PlanetDetailPage() {
             <ScrollAnimationContainer 
               type="fadeUp"
               className="pb-12"
-              triggerOnce={true}
+              triggerOnce={optimizedProps.triggerOnce}
               threshold={0.1}
               rootMargin="150px 0px"
               exitAnimation={false}
               disableOnLowEnd={true}
               force3d={true}
-              gpuRender={true}
-              duration={0.4}
+              gpuRender={optimizedProps.gpuRender}
+              duration={optimizedProps.duration}
             >
               <PlanetNavigation 
                 planetNames={planetTextureMap}

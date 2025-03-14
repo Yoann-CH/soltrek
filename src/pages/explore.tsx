@@ -1,6 +1,6 @@
-import { LazyMotion, domAnimation } from 'framer-motion';
+import { LazyMotion, domAnimation, useReducedMotion } from 'framer-motion';
 import PlanetCard from '../components/PlanetCard';
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, useMemo } from 'react';
 import { fetchAllPlanets, fetchPlanetNews, SpaceNewsArticle } from '../lib/api';
 // Utilisation du lazy loading pour le SolarSystemView
 const SolarSystemViewComponent = lazy(() => import('../components/solar-system/SolarSystemView'));
@@ -12,6 +12,22 @@ const SpaceBackground = lazy(() => import('../components/SpaceBackground'));
 import ScrollAnimationContainer from '../components/ScrollAnimationContainer';
 import { format, isValid, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+
+// Interfaces pour les APIs du navigateur non standardisées
+interface FullscreenDocument extends Document {
+  mozFullScreenElement?: Element;
+  webkitFullscreenElement?: Element;
+  msFullscreenElement?: Element;
+  mozCancelFullScreen?: () => Promise<void>;
+  webkitExitFullscreen?: () => Promise<void>;
+  msExitFullscreen?: () => Promise<void>;
+}
+
+interface FullscreenElement extends HTMLElement {
+  mozRequestFullScreen?: () => Promise<void>;
+  webkitRequestFullscreen?: () => Promise<void>;
+  msRequestFullscreen?: () => Promise<void>;
+}
 
 // Liste des planètes du système solaire
 const planetNames = [
@@ -34,6 +50,8 @@ function LazySystemView() {
   const [isEnabled, setIsEnabled] = useState(false);
   // Nouvel état pour la qualité du rendu
   const [quality, setQuality] = useState<'low' | 'medium' | 'high'>('medium');
+  // Nouvel état pour suivre si on est en mode plein écran
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -63,6 +81,43 @@ function LazySystemView() {
     };
   }, [isVisible]);
 
+  // Écouteur d'événements pour détecter les changements d'état du mode plein écran
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const doc = document as FullscreenDocument;
+      const isCurrentlyFullscreen = Boolean(
+        doc.fullscreenElement ||
+        doc.webkitFullscreenElement ||
+        doc.mozFullScreenElement ||
+        doc.msFullscreenElement
+      );
+      
+      setIsFullscreen(isCurrentlyFullscreen);
+      
+      // Si on quitte le mode plein écran via la touche Échap, on désactive aussi la vue 3D
+      if (!isCurrentlyFullscreen && isEnabled) {
+        setIsEnabled(false);
+        try {
+          localStorage.removeItem('solar3dViewEnabled');
+        } catch (e) {
+          console.error('Impossible de supprimer la préférence:', e);
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, [isEnabled]);
+
   // Réutiliser la variable hasLoaded pour afficher un message différent lorsque la vue a été chargée
   const getLoadingMessage = useCallback(() => {
     return hasLoaded 
@@ -75,9 +130,45 @@ function LazySystemView() {
     setHasLoaded(true);
   }, []);
 
-  // Fonction pour activer la vue 3D
+  // Fonction pour entrer en mode plein écran
+  const requestFullscreen = useCallback((element: HTMLElement) => {
+    const fsElement = element as FullscreenElement;
+    
+    if (fsElement.requestFullscreen) {
+      fsElement.requestFullscreen();
+    } else if (fsElement.mozRequestFullScreen) { /* Firefox */
+      fsElement.mozRequestFullScreen();
+    } else if (fsElement.webkitRequestFullscreen) { /* Chrome, Safari et Opera */
+      fsElement.webkitRequestFullscreen();
+    } else if (fsElement.msRequestFullscreen) { /* IE/Edge */
+      fsElement.msRequestFullscreen();
+    }
+  }, []);
+
+  // Fonction pour quitter le mode plein écran
+  const exitFullscreen = useCallback(() => {
+    const doc = document as FullscreenDocument;
+    
+    if (doc.exitFullscreen) {
+      doc.exitFullscreen();
+    } else if (doc.mozCancelFullScreen) { /* Firefox */
+      doc.mozCancelFullScreen();
+    } else if (doc.webkitExitFullscreen) { /* Chrome, Safari et Opera */
+      doc.webkitExitFullscreen();
+    } else if (doc.msExitFullscreen) { /* IE/Edge */
+      doc.msExitFullscreen();
+    }
+  }, []);
+
+  // Fonction pour activer la vue 3D et passer en plein écran
   const handleEnableView = useCallback(() => {
     setIsEnabled(true);
+    
+    // Passage en plein écran
+    if (containerRef.current) {
+      requestFullscreen(containerRef.current);
+    }
+    
     // On peut stocker cette préférence dans le localStorage pour les visites ultérieures
     try {
       localStorage.setItem('solar3dViewEnabled', 'true');
@@ -86,11 +177,17 @@ function LazySystemView() {
     } catch (e) {
       console.error('Impossible de sauvegarder la préférence:', e);
     }
-  }, [quality]);
+  }, [quality, requestFullscreen]);
   
-  // Fonction pour désactiver la vue 3D
+  // Fonction pour désactiver la vue 3D et quitter le plein écran
   const handleDisableView = useCallback(() => {
     setIsEnabled(false);
+    
+    // Quitter le mode plein écran
+    if (isFullscreen) {
+      exitFullscreen();
+    }
+    
     // Supprimer la préférence du localStorage
     try {
       localStorage.removeItem('solar3dViewEnabled');
@@ -99,7 +196,7 @@ function LazySystemView() {
     }
     // Optionnel: Réinitialiser l'état de chargement
     setHasLoaded(false);
-  }, []);
+  }, [exitFullscreen, isFullscreen]);
 
   // Fonction pour changer la qualité du rendu (avant activation)
   const handleQualityChange = useCallback((newQuality: 'low' | 'medium' | 'high') => {
@@ -131,28 +228,66 @@ function LazySystemView() {
   }, []);
 
   return (
-    <div className="space-y-4">
-      {/* Bouton pour désactiver la vue 3D (placé en dehors de la visualisation) */}
-      {isVisible && isEnabled && (
-        <div className="flex justify-center">
-          <button 
-            onClick={handleDisableView}
-            className="cursor-pointer px-6 py-3 bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 text-white rounded-lg shadow-lg transform transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 flex items-center gap-2"
-            aria-label="Désactiver la vue 3D"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-            Désactiver la vue 3D
-          </button>
-        </div>
-      )}
-    
-      <div ref={containerRef} className="bg-white/10 dark:bg-gray-900/20 backdrop-blur-md rounded-xl border border-gray-200/30 dark:border-gray-700/30 p-4 overflow-hidden min-h-[400px] shadow-xl">
+    <div className="space-y-4">    
+      <div 
+        ref={containerRef} 
+        className={`bg-white/10 dark:bg-gray-900/20 backdrop-blur-md rounded-xl border border-gray-200/30 dark:border-gray-700/30 p-4 overflow-hidden min-h-[400px] shadow-xl ${isFullscreen 
+          ? 'fixed inset-0 z-[999] rounded-none border-0 flex items-center justify-center bg-black transition-all duration-300' 
+          : 'transition-all duration-300'}`}
+      >
         {isVisible ? (
           // Si visible et activé, montrer la vue 3D
           isEnabled ? (
-            <div className="relative">              
+            <div className="relative w-full h-full">
+              {/* Bandeau supérieur en mode plein écran */}
+              {isFullscreen && (
+                <div className="absolute top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-md py-2.5 px-3 xs:px-4 sm:px-5 border-b border-gray-700/70 shadow-lg">
+                  <div className="flex flex-wrap justify-between items-center gap-x-3 gap-y-2">
+                    <div className="flex items-center flex-wrap gap-1.5 xs:gap-2">
+                      <span className="text-white text-[10px] xs:text-xs sm:text-sm font-medium whitespace-nowrap">Mode d'affichage :</span>
+                      <span className={`px-2 py-0.5 xs:py-1 rounded text-[10px] xs:text-xs font-medium ${
+                        quality === 'low' 
+                          ? 'bg-blue-600/40 text-blue-200' 
+                          : quality === 'medium'
+                            ? 'bg-blue-500/40 text-blue-200'
+                            : 'bg-purple-500/40 text-purple-200'
+                      }`}>
+                        {quality === 'low' && "Basse qualité"}
+                        {quality === 'medium' && "Qualité moyenne"}
+                        {quality === 'high' && "Haute qualité"}
+                      </span>
+                    </div>
+                    
+                    <button 
+                      onClick={handleDisableView}
+                      className="cursor-pointer ml-auto px-2 xs:px-3 py-1 xs:py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 text-white rounded-lg shadow-md transform transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 flex items-center gap-1 xs:gap-2 text-[10px] xs:text-xs sm:text-sm"
+                      aria-label="Quitter le mode plein écran"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 xs:h-4 xs:w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      <span className="whitespace-nowrap">Quitter la vue 3D</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* On supprime le bouton pour désactiver la vue 3D dans la visualisation car il est maintenant dans le bandeau supérieur */}
+              {!isFullscreen && (
+                <div className="flex justify-end mb-4">
+                  <button 
+                    onClick={handleDisableView}
+                    className="cursor-pointer px-6 py-3 bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 text-white rounded-lg shadow-lg transform transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 flex items-center gap-2"
+                    aria-label="Désactiver la vue 3D"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Désactiver la vue 3D
+                  </button>
+                </div>
+              )}
+              
               <Suspense fallback={
                 <div className="flex items-center justify-center h-full min-h-[400px]">
                   <div className="text-center">
@@ -165,6 +300,7 @@ function LazySystemView() {
                   onLoaded={handleLoaded} 
                   isVisible={isVisible && isEnabled} 
                   quality={quality} 
+                  isFullscreen={isFullscreen}
                 />
               </Suspense>
             </div>
@@ -243,8 +379,8 @@ function LazySystemView() {
         )}
       </div>
       
-      {/* Bandeau d'information sur la qualité sélectionnée */}
-      {isVisible && isEnabled && (
+      {/* Bandeau d'information sur la qualité sélectionnée (affiché uniquement si pas en mode plein écran) */}
+      {isVisible && isEnabled && !isFullscreen && (
         <div className="flex justify-center items-center text-sm mt-2">
           <div className="bg-gray-800/50 px-4 py-2 rounded-lg border border-gray-700/30 backdrop-blur-sm flex items-center gap-2">
             <span className="text-gray-300">Qualité actuelle :</span>
@@ -294,6 +430,50 @@ export default function ExplorePage() {
   const [spaceNews, setSpaceNews] = useState<SpaceNewsArticle[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [newsError, setNewsError] = useState<Error | null>(null);
+  
+  // Détection des préférences d'animation réduites
+  const prefersReducedMotion = useReducedMotion();
+  
+  // Détection des appareils à faible performance - une approche simple basée sur l'UA
+  const [isLowEndDevice, setIsLowEndDevice] = useState(false);
+  
+  // Détection des appareils à faible performance
+  useEffect(() => {
+    // Test simple pour les appareils mobiles
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Test de performance basique
+    const testPerformance = () => {
+      const start = performance.now();
+      
+      // Effectuer une opération coûteuse pour tester les performances
+      // On utilise une fonction IIFE pour éviter les avertissements de variables non utilisées
+      (function() {
+        let result = 0;
+        for (let i = 0; i < 1000000; i++) {
+          result += Math.sqrt(i);
+        }
+        // Pour éviter que le compilateur n'optimise et supprime la boucle, on retourne result
+        // même si on ne l'utilise pas en dehors de cette fonction
+        return result;
+      })();
+      
+      const end = performance.now();
+      // Si le calcul prend plus de 50ms, considérer l'appareil comme à faible performance
+      return (end - start) > 50;
+    };
+    
+    // Considérer les appareils mobiles ou ceux qui échouent au test de performance comme à faible performance
+    const lowEndResult = isMobile || testPerformance();
+    setIsLowEndDevice(lowEndResult);
+    
+    // Stocker la préférence dans le localStorage pour les futures visites
+    try {
+      localStorage.setItem('isLowEndDevice', lowEndResult.toString());
+    } catch (e) {
+      console.error('Impossible de sauvegarder la préférence de performance', e);
+    }
+  }, []);
 
   // Fonction pour récupérer les planètes depuis l'API
   useEffect(() => {
@@ -377,18 +557,239 @@ export default function ExplorePage() {
     </div>
   ), []);
   
+  // Calculer les paramètres d'animation optimisés en fonction des préférences et des capacités de l'appareil
+  const optimizedAnimationProps = useMemo(() => {
+    // Si l'utilisateur préfère les animations réduites ou utilise un appareil à faible performance
+    if (prefersReducedMotion || isLowEndDevice) {
+      return {
+        starCount: 40, // Nombre réduit d'étoiles
+        planetCount: 0, // Pas de planètes en arrière-plan
+        enableParallax: false, // Désactiver le parallaxe
+        showNebulae: false, // Pas de nébuleuses
+        triggerOnce: true, // Ne déclencher les animations qu'une seule fois
+        duration: 0.2, // Animations plus rapides
+        delay: 0, // Pas de délai
+        disableStaggering: true, // Désactiver l'animation en cascade
+        gpuRender: true, // Forcer le rendu GPU
+        force3d: true, // Forcer les transformations 3D pour utiliser l'accélération GPU
+        useSimpleAnimations: true // Utiliser des animations simplifiées
+      };
+    }
+    
+    // Configuration standard pour les appareils performants
+    return {
+      starCount: 150,
+      planetCount: 5,
+      enableParallax: true,
+      showNebulae: true,
+      triggerOnce: true,
+      duration: 0.4,
+      delay: 100,
+      disableStaggering: false,
+      gpuRender: true,
+      force3d: true,
+      useSimpleAnimations: false
+    };
+  }, [prefersReducedMotion, isLowEndDevice]);
+  
   // Afficher un squelette de chargement pendant le chargement initial
   if (isLoading) {
     return <LoadingSkeleton />;
   }
   
+  // Version sans animations pour les préférences d'animation réduites ou appareils à faible performance
+  if (prefersReducedMotion || isLowEndDevice) {
+    return (
+      <div className="min-h-screen relative overflow-hidden bg-black dark:bg-black transition-colors bg-cover bg-fixed">
+        {/* Fond spatial avec paramètres réduits */}
+        <Suspense fallback={<div className="absolute inset-0 bg-black" />}>
+          <SpaceBackground 
+            starCount={optimizedAnimationProps.starCount} 
+            planetCount={optimizedAnimationProps.planetCount} 
+            enableParallax={optimizedAnimationProps.enableParallax} 
+            showNebulae={optimizedAnimationProps.showNebulae} 
+          />
+        </Suspense>
+        
+        <Header pageName="explorer" />
+        
+        <main className="max-w-7xl mx-auto py-6 sm:py-8 md:py-12 px-4 sm:px-6 relative z-10">
+          {/* Section titre */}
+          <div className="text-center mb-8 sm:mb-12">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent leading-relaxed pb-1">
+              Explorer le Système Solaire
+            </h1>
+            
+            <p className="text-base sm:text-lg md:text-xl text-gray-200 dark:text-gray-200 max-w-3xl mx-auto leading-relaxed pb-1">
+              Découvrez les planètes du système solaire et leurs caractéristiques uniques
+            </p>
+            
+            {apiError && (
+              <div className="mt-4 p-3 bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/60 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-300 rounded-md backdrop-blur-sm">
+                {apiError}
+              </div>
+            )}
+          </div>
+          
+          {/* Section vue 3D */}
+          <div className="mb-10 sm:mb-16 md:mb-20 relative">
+            <div className="relative">
+              <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/20 rounded-full filter blur-3xl" />
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-500/10 dark:bg-purple-500/20 rounded-full filter blur-3xl" />
+              
+              <div className="text-center mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent inline-block">
+                  Vue 3D Interactive
+                </h2>
+                <div className="h-px w-full max-w-lg mx-auto mt-2 bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+              </div>
+            </div>
+            
+            <LazySystemView />
+          </div>
+          
+          {/* Section planètes */}
+          <div className="relative">
+            <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/20 rounded-full filter blur-3xl" />
+            <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-500/10 dark:bg-purple-500/20 rounded-full filter blur-3xl" />
+            
+            <div className="text-center mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent inline-block">
+                Planètes du Système Solaire
+              </h2>
+              <div className="h-px w-full max-w-lg mx-auto mt-2 bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+            </div>
+            
+            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 auto-rows-fr">
+              {planetNames.map((name, index) => (
+                <div key={name} className="h-full">
+                  <PlanetCard name={name} index={index} />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Section actualités */}
+          <div className="relative mt-16 mb-10">
+            <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/20 rounded-full filter blur-3xl" />
+            <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-500/10 dark:bg-purple-500/20 rounded-full filter blur-3xl" />
+            
+            <div className="text-center mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent inline-block">
+                Actualités Astronomiques
+              </h2>
+              <div className="h-px w-full max-w-lg mx-auto mt-2 bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+            </div>
+            
+            {/* Rendu conditionnel des actualités */}
+            {newsLoading ? (
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5">
+                    <div className="aspect-video bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                    <div className="p-3 sm:p-4 space-y-3">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 animate-pulse" />
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse" />
+                      <div className="space-y-2">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : newsError ? (
+              <div className="bg-red-100/20 dark:bg-red-900/20 border border-red-200/30 dark:border-red-500/30 rounded-lg p-4 sm:p-6 backdrop-blur-sm shadow-lg shadow-red-500/5">
+                <h2 className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Erreur de communication</h2>
+                <p className="text-sm sm:text-base text-gray-200 dark:text-gray-300">
+                  Impossible de récupérer les actualités pour le moment. Veuillez réessayer plus tard.
+                </p>
+              </div>
+            ) : spaceNews.length === 0 ? (
+              <div className="bg-blue-100/20 dark:bg-blue-900/20 border border-blue-200/30 dark:border-blue-500/30 rounded-lg p-4 sm:p-6 backdrop-blur-sm shadow-lg shadow-blue-500/5">
+                <h2 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400 mb-2">Aucune actualité récente</h2>
+                <p className="text-sm sm:text-base text-gray-200 dark:text-gray-300">
+                  Aucune actualité récente n'a été trouvée pour le système solaire.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 flex items-center gap-2 flex-wrap">
+                    Source : Spaceflight News API
+                    <span className="px-2 py-1 bg-blue-100/20 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 rounded">
+                      Articles en anglais
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {spaceNews.slice(0, 6).map((article) => (
+                    <a
+                      key={article.id}
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full"
+                    >
+                      <div className="aspect-video relative overflow-hidden">
+                        <img
+                          src={article.image_url || '/assets/default.webp'}
+                          alt={article.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (!target.src.includes('/assets/default.webp')) {
+                              console.log('Image non trouvée, utilisation de la valeur par défaut');
+                              target.src = '/assets/default.webp';
+                            }
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div className="absolute bottom-2 left-3 right-3">
+                          <p className="text-xs sm:text-sm text-gray-200">
+                            {formatDate(article.published_at)}
+                          </p>
+                          <p className="text-xs text-gray-300">{article.news_site}</p>
+                        </div>
+                      </div>
+                      <div className="p-3 sm:p-4">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-200 dark:text-gray-100 mb-2 line-clamp-2">
+                          {article.title}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
+                          {article.summary}
+                        </p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+        
+        <Footer />
+        <ScrollToTop />
+      </div>
+    );
+  }
+  
   // Utiliser m au lieu de motion pour la plupart des composants pour réduire le bundle size
   return (
     <LazyMotion features={domAnimation}>
-      <div className="min-h-screen relative overflow-hidden bg-black dark:bg-black transition-colors bg-cover bg-fixed">
+      <div className="min-h-screen relative overflow-hidden bg-black dark:bg-black transition-colors bg-cover bg-fixed"
+           style={{ willChange: 'transform', transform: 'translateZ(0)' }}>
         {/* Fond spatial ajouté ici */}
         <Suspense fallback={<div className="absolute inset-0 bg-black" />}>
-          <SpaceBackground starCount={150} planetCount={5} enableParallax={true} showNebulae={true} />
+          <SpaceBackground 
+            starCount={optimizedAnimationProps.starCount} 
+            planetCount={optimizedAnimationProps.planetCount} 
+            enableParallax={optimizedAnimationProps.enableParallax} 
+            showNebulae={optimizedAnimationProps.showNebulae} 
+          />
         </Suspense>
         
         <Header pageName="explorer" />
@@ -399,42 +800,45 @@ export default function ExplorePage() {
             type="staggered"
             className="text-center mb-8 sm:mb-12"
             style={{ willChange: 'transform' }}
-            triggerOnce={true}
+            triggerOnce={optimizedAnimationProps.triggerOnce}
             threshold={0.2}
           >
             <ScrollAnimationContainer 
-              type="fadeDown"
+              type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeDown"}
               className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent leading-relaxed pb-1"
-              delay={100}
-              triggerOnce={true}
+              delay={optimizedAnimationProps.delay}
+              triggerOnce={optimizedAnimationProps.triggerOnce}
               disableOnLowEnd={true}
-              force3d={true}
-              gpuRender={true}
+              force3d={optimizedAnimationProps.force3d}
+              gpuRender={optimizedAnimationProps.gpuRender}
+              duration={optimizedAnimationProps.duration}
             >
               Explorer le Système Solaire
             </ScrollAnimationContainer>
             
             <ScrollAnimationContainer 
-              type="fadeUp"
+              type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
               className="text-base sm:text-lg md:text-xl text-gray-200 dark:text-gray-200 max-w-3xl mx-auto leading-relaxed pb-1"
-              delay={200}
-              triggerOnce={true}
+              delay={optimizedAnimationProps.delay + 100}
+              triggerOnce={optimizedAnimationProps.triggerOnce}
               disableOnLowEnd={true}
-              force3d={true}
-              gpuRender={true}
+              force3d={optimizedAnimationProps.force3d}
+              gpuRender={optimizedAnimationProps.gpuRender}
+              duration={optimizedAnimationProps.duration}
             >
               Découvrez les planètes du système solaire et leurs caractéristiques uniques
             </ScrollAnimationContainer>
             
             {apiError && (
               <ScrollAnimationContainer 
-                type="fadeUp"
+                type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
                 className="mt-4 p-3 bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/60 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-300 rounded-md backdrop-blur-sm"
-                delay={300}
-                triggerOnce={true}
+                delay={optimizedAnimationProps.delay + 200}
+                triggerOnce={optimizedAnimationProps.triggerOnce}
                 disableOnLowEnd={true}
-                force3d={true}
-                gpuRender={true}
+                force3d={optimizedAnimationProps.force3d}
+                gpuRender={optimizedAnimationProps.gpuRender}
+                duration={optimizedAnimationProps.duration}
               >
                 {apiError}
               </ScrollAnimationContainer>
@@ -443,15 +847,16 @@ export default function ExplorePage() {
           
           {/* Section vue 3D avec animation de défilement */}
           <ScrollAnimationContainer
-            type="fadeUp"
+            type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
             className="mb-10 sm:mb-16 md:mb-20 relative"
-            triggerOnce={true}
+            triggerOnce={optimizedAnimationProps.triggerOnce}
             exitAnimation={false}
             threshold={0.1}
             rootMargin="100px 0px"
             disableOnLowEnd={true}
-            force3d={true}
-            gpuRender={true}
+            force3d={optimizedAnimationProps.force3d}
+            gpuRender={optimizedAnimationProps.gpuRender}
+            duration={optimizedAnimationProps.duration}
           >
             <div className="relative">
               <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/20 rounded-full filter blur-3xl" />
@@ -470,15 +875,16 @@ export default function ExplorePage() {
           
           {/* Section planètes avec animation au scroll */}
           <ScrollAnimationContainer
-            type="fadeUp"
+            type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
             className="relative"
-            triggerOnce={true}
+            triggerOnce={optimizedAnimationProps.triggerOnce}
             exitAnimation={false}
             threshold={0.05}
             rootMargin="100px 0px"
             disableOnLowEnd={true}
-            force3d={true}
-            gpuRender={true}
+            force3d={optimizedAnimationProps.force3d}
+            gpuRender={optimizedAnimationProps.gpuRender}
+            duration={optimizedAnimationProps.duration}
           >
             <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/20 rounded-full filter blur-3xl" />
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-500/10 dark:bg-purple-500/20 rounded-full filter blur-3xl" />
@@ -494,17 +900,17 @@ export default function ExplorePage() {
               {planetNames.map((name, index) => (
                 <ScrollAnimationContainer
                   key={name}
-                  type="scale"
+                  type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "scale"}
                   className="h-full"
-                  delay={index * 20} // Réduit l'intervalle entre animations
-                  triggerOnce={true} // Changé à true pour éviter les réanimations
-                  exitAnimation={false} // Désactivé l'animation de sortie
+                  delay={Math.min(index * 20, 100)} // Limite le délai maximum à 100ms
+                  triggerOnce={optimizedAnimationProps.triggerOnce}
+                  exitAnimation={false}
                   threshold={0.05}
-                  rootMargin="200px 0px" // Augmenté pour précharger plus tôt
-                  duration={0.4} // Animation plus rapide
+                  rootMargin="200px 0px"
+                  duration={optimizedAnimationProps.duration}
                   disableOnLowEnd={true}
-                  force3d={true}
-                  gpuRender={true}
+                  force3d={optimizedAnimationProps.force3d}
+                  gpuRender={optimizedAnimationProps.gpuRender}
                 >
                   <PlanetCard name={name} index={index} />
                 </ScrollAnimationContainer>
@@ -514,15 +920,16 @@ export default function ExplorePage() {
           
           {/* Nouvelle section d'actualités spatiales */}
           <ScrollAnimationContainer
-            type="fadeUp"
+            type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
             className="relative mt-16 mb-10"
-            triggerOnce={true}
+            triggerOnce={optimizedAnimationProps.triggerOnce}
             exitAnimation={false}
             threshold={0.05}
             rootMargin="150px 0px"
             disableOnLowEnd={true}
-            force3d={true}
-            gpuRender={true}
+            force3d={optimizedAnimationProps.force3d}
+            gpuRender={optimizedAnimationProps.gpuRender}
+            duration={optimizedAnimationProps.duration}
           >
             <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/20 rounded-full filter blur-3xl" />
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-500/10 dark:bg-purple-500/20 rounded-full filter blur-3xl" />
@@ -580,30 +987,31 @@ export default function ExplorePage() {
                   {spaceNews.slice(0, 6).map((article, index) => (
                     <ScrollAnimationContainer
                       key={article.id}
-                      type="scale"
+                      type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "scale"}
                       className="h-full"
-                      delay={Math.min(index * 30, 150)} // Limiter le délai maximum
-                      triggerOnce={true}
+                      delay={Math.min(index * 20, 100)} // Limiter le délai maximum
+                      triggerOnce={optimizedAnimationProps.triggerOnce}
                       exitAnimation={false}
                       threshold={0.05}
                       rootMargin="200px 0px"
-                      duration={0.4}
+                      duration={optimizedAnimationProps.duration}
                       disableOnLowEnd={true}
-                      force3d={true}
-                      gpuRender={true}
+                      force3d={optimizedAnimationProps.force3d}
+                      gpuRender={optimizedAnimationProps.gpuRender}
                     >
                       <a
                         href={article.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="group block bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full transform transition-transform hover:scale-[1.02] hover:-translate-y-1"
+                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                       >
                         <div className="aspect-video relative overflow-hidden">
                           <img
                             src={article.image_url || '/assets/default.webp'}
                             alt={article.title}
                             className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
-                            loading="lazy" // Ajoute le chargement différé des images
+                            loading="lazy"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               if (!target.src.includes('/assets/default.webp')) {

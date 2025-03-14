@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { memo, useState, useEffect, useMemo, useRef } from 'react';
 import { useLoading } from '../lib/loadingContext';
@@ -43,6 +43,8 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
   const isMounted = useRef(true);
   // Détecter si on est sur mobile
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Utiliser useReducedMotion pour détecter les préférences d'animation réduites
+  const prefersReducedMotion = useReducedMotion();
 
   // Préchargement optimisé des textures
   useEffect(() => {
@@ -105,41 +107,67 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
     };
   }, [name, isMobile]);
 
-  // Animation constants memoizés
-  const animationProps = useMemo(() => ({
-    initial: { opacity: 0, y: 20 },
-    animate: appLoaded ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 },
-    transition: { 
-      duration: 0.4,
-      delay: index * 0.1,
-      ease: [0.22, 1, 0.36, 1]
+  // Animation constants memoizés - optimisés pour performance
+  const animationProps = useMemo(() => {
+    // Si préférence pour animations réduites, animations simplifiées
+    if (prefersReducedMotion) {
+      return {
+        initial: { opacity: 0 },
+        animate: appLoaded ? { opacity: 1 } : { opacity: 0 },
+        transition: { 
+          duration: 0.2,
+          // Pas de délai pour les animations réduites
+        }
+      };
     }
-  }), [appLoaded, index]);
-
-  // Réduire l'échelle sur mobile pour éviter les problèmes de performance
-  const hoverProps = useMemo(() => ({
-    whileHover: isMobile ? undefined : { 
-      scale: 1.02,
-      transition: { duration: 0.2 }
-    },
-    whileTap: { 
-      scale: 0.98,
-      transition: { duration: 0.1 }
-    }
-  }), [isMobile]);
-
-  // Optimisation des transitions d'animation infinies - réduites sur mobile
-  const planetAnimProps = useMemo(() => ({
-    animate: isMobile ? undefined : { 
-      y: [0, -4, 0],
+    
+    return {
+      initial: { opacity: 0, y: 20 },
+      animate: appLoaded ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 },
       transition: { 
-        duration: 4,
-        ease: "easeInOut",
-        repeat: Infinity,
-        repeatType: "mirror" as const
+        duration: 0.4,
+        delay: Math.min(index * 0.1, 0.5), // Limiter le délai maximum à 0.5s
+        ease: [0.22, 1, 0.36, 1]
       }
+    };
+  }, [appLoaded, index, prefersReducedMotion]);
+
+  // Réduire l'échelle sur mobile ou pour les animations réduites
+  const hoverProps = useMemo(() => {
+    if (prefersReducedMotion || isMobile) {
+      return {}; // Pas d'animation au survol pour les animations réduites ou mobile
     }
-  }), [isMobile]);
+    
+    return {
+      whileHover: { 
+        scale: 1.02,
+        transition: { duration: 0.2, type: "tween" } // Tween est plus léger que spring
+      },
+      whileTap: { 
+        scale: 0.98,
+        transition: { duration: 0.1 }
+      }
+    };
+  }, [isMobile, prefersReducedMotion]);
+
+  // Optimisation des transitions d'animation infinies
+  const planetAnimProps = useMemo(() => {
+    if (prefersReducedMotion || isMobile) {
+      return {}; // Pas d'animation pour les animations réduites ou mobile
+    }
+    
+    return {
+      animate: { 
+        y: [0, -4, 0],
+        transition: { 
+          duration: 4,
+          ease: "easeInOut",
+          repeat: Infinity,
+          repeatType: "mirror" as const
+        }
+      }
+    };
+  }, [isMobile, prefersReducedMotion]);
 
   const handleClick = () => {
     navigate(`/explore/${name.toLowerCase()}`);
@@ -161,7 +189,7 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
       role="button"
       aria-label={`Explorer ${name}`}
       style={{
-        willChange: isMobile ? 'auto' : 'transform',
+        willChange: isMobile || prefersReducedMotion ? 'auto' : 'transform, opacity',
         transform: 'translateZ(0)',
         backfaceVisibility: 'hidden'
       }}
@@ -206,7 +234,7 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
               zIndex: -1,
               willChange: 'transform' // Optimisation GPU
             }}
-            {...(isMobile ? {} : planetAnimProps)}
+            {...(isMobile || prefersReducedMotion ? {} : planetAnimProps)}
           />
         )}
         <motion.div 
@@ -215,9 +243,9 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
             boxShadow: `0 0 25px ${colors.glow}`,
             border: '1px solid rgba(255, 255, 255, 0.3)',
             zIndex: 1,
-            willChange: isMobile ? 'auto' : 'transform' // Désactiver willChange sur mobile
+            willChange: isMobile || prefersReducedMotion ? 'auto' : 'transform'
           }}
-          {...(isMobile ? {} : planetAnimProps)} // Désactiver l'animation sur mobile
+          {...(isMobile || prefersReducedMotion ? {} : planetAnimProps)}
         >
           <div 
             className="absolute inset-0 w-full h-full rounded-full"
@@ -283,7 +311,7 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
               zIndex: 2,
               willChange: 'transform' // Optimisation GPU
             }}
-            {...(isMobile ? {} : planetAnimProps)}
+            {...(isMobile || prefersReducedMotion ? {} : planetAnimProps)}
           />
         )}
       </div>
@@ -307,10 +335,11 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
         </div>
       </div>
       
-      {/* Particules d'étoiles (effet visuel) - désactivées sur mobile */}
-      {!isMobile && (
+      {/* Particules d'étoiles (effet visuel) - désactivées sur mobile et pour reduced motion */}
+      {!isMobile && !prefersReducedMotion && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-          {[...Array(12)].map((_, i) => (
+          {/* Réduire le nombre de particules pour améliorer les performances */}
+          {[...Array(6)].map((_, i) => (
             <div
               key={i}
               className="absolute w-[2px] h-[2px] rounded-full bg-white animate-twinkle"
@@ -362,6 +391,17 @@ const PlanetCard = memo(({ name, index }: PlanetCardProps) => {
             background-size: cover !important;
             transform: translateZ(0) !important;
             will-change: auto !important;
+          }
+        }
+        
+        /* Nouvelles optimisations pour la compatibilité avec reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+          .planet-card {
+            transition: none !important;
+          }
+          
+          .planet-card div[style*="animation"] {
+            animation: none !important;
           }
         }
         `}

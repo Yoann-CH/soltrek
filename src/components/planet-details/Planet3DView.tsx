@@ -1,5 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 
 interface Planet3DViewProps {
   planetName: string;
@@ -14,6 +14,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
   const [initialTransform, setInitialTransform] = useState<string | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const prefersReducedMotion = useReducedMotion();
   
   // Précharger la texture
   useEffect(() => {
@@ -37,81 +38,82 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     };
   }, [textureName]);
   
-  // Effet de rotation 3D sur la planète avec le mouvement de la souris
-  useEffect(() => {
-    if (!planetRef.current) return;
+  // Optimisation: mémoriser les gestionnaires d'événements avec useCallback
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!planetRef.current || isScrolling || prefersReducedMotion) return;
     
     const planet = planetRef.current;
-    const starsContainer = starsContainerRef.current;
+    const rect = planet.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Réduire la précision des calculs pour améliorer les performances
+    const rotateY = Math.round(((e.clientX - centerX) / window.innerWidth) * 150) / 10;
+    const rotateX = Math.round(((e.clientY - centerY) / window.innerHeight) * -150) / 10;
+    
+    // Utiliser transform3d pour activer l'accélération GPU
+    planet.style.transform = `translate3d(0,0,0) rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
+    
+    // Enregistrer la transformation initiale lors du premier rendu
+    if (!initialTransform) {
+      setInitialTransform(`rotateY(${rotateY}deg) rotateX(${rotateX}deg)`);
+    }
+  }, [isScrolling, initialTransform, prefersReducedMotion]);
+  
+  // Gestionnaire d'événements pour les appareils tactiles optimisé
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (isMobile || !planetRef.current || isScrolling || prefersReducedMotion) return;
+    
+    // S'assurer que nous n'interrompons que les interactions avec le modèle 3D
+    const target = e.target as HTMLElement;
+    const isPlanetElement = target.closest('.planet') !== null;
+    if (!isPlanetElement || e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    const planet = planetRef.current;
+    const rect = planet.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Réduire la précision des calculs
+    const rotateY = Math.round(((touch.clientX - centerX) / window.innerWidth) * 150) / 10;
+    const rotateX = Math.round(((touch.clientY - centerY) / window.innerHeight) * -150) / 10;
+    
+    // Utiliser transform3d pour activer l'accélération GPU
+    planet.style.transform = `translate3d(0,0,0) rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
+    
+    // Mettre à jour les variables globales de position
+    window.mouseX = touch.clientX;
+    window.mouseY = touch.clientY;
+  }, [isMobile, isScrolling, prefersReducedMotion]);
+  
+  // Gestionnaire de défilement optimisé
+  const handleScroll = useCallback(() => {
+    if (!planetRef.current) return;
+    
+    setIsScrolling(true);
+    const planet = planetRef.current;
+    // Utiliser des classes CSS au lieu de manipuler les styles directement
+    planet.classList.add('scrolling');
+    
+    if (starsContainerRef.current) {
+      starsContainerRef.current.classList.add('scrolling-stars');
+    }
+  }, []);
+  
+  // Effet de rotation 3D sur la planète avec le mouvement de la souris
+  useEffect(() => {
+    if (!planetRef.current || prefersReducedMotion) return;
+    
+    const planet = planetRef.current;
     
     // Forcer l'application de la texture si elle est déjà chargée
     if (isTextureLoaded) {
       planet.style.setProperty('--planet-texture', `url('/assets/textures/planets/${textureName}.jpg')`);
     }
     
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!planet || isScrolling) return;
-      
-      const rect = planet.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      
-      const rotateY = ((e.clientX - centerX) / window.innerWidth) * 15;
-      const rotateX = ((e.clientY - centerY) / window.innerHeight) * -15;
-      
-      // Enregistrer la transformation initiale lors du premier rendu
-      if (!initialTransform) {
-        setInitialTransform(`rotateY(${rotateY}deg) rotateX(${rotateX}deg)`);
-      }
-      
-      planet.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
-    };
-    
-    // Gestionnaire d'événements pour les appareils tactiles
-    const handleTouchMove = (e: TouchEvent) => {
-      // Sur mobile, toujours permettre le défilement par défaut
-      if (isMobile || !planet || isScrolling) return;
-      
-      // S'assurer que nous n'interrompons que les interactions avec le modèle 3D
-      const target = e.target as HTMLElement;
-      const isPlanetElement = target.closest('.planet') !== null;
-      
-      // Ne pas interférer si on n'est pas sur un élément de la planète
-      if (!isPlanetElement) return;
-      
-      // Continuer seulement si c'est une manipulation intentionnelle du modèle 3D
-      if (e.touches.length !== 1) return;
-      
-      const touch = e.touches[0];
-      const rect = planet.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      
-      const rotateY = ((touch.clientX - centerX) / window.innerWidth) * 15;
-      const rotateX = ((touch.clientY - centerY) / window.innerHeight) * -15;
-      
-      planet.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
-      
-      // Mettre à jour les variables globales de position
-      window.mouseX = touch.clientX;
-      window.mouseY = touch.clientY;
-    };
-    
-    // Gestionnaire de défilement pour réinitialiser la transformation
-    const handleScroll = () => {
-      if (!planet) return;
-      setIsScrolling(true);
-      // Réinitialiser la transformation pendant le défilement pour éviter les déformations
-      planet.style.transform = 'rotateY(0deg) rotateX(0deg)';
-      planet.classList.add('scrolling');
-      
-      // Geler également les étoiles pendant le défilement
-      if (starsContainer) {
-        starsContainer.classList.add('scrolling-stars');
-      }
-    };
-    
-    window.addEventListener('mousemove', handleMouseMove);
+    // Utiliser les options passive pour améliorer les performances de défilement
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('scroll', handleScroll, { passive: true });
     
@@ -120,50 +122,47 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [isTextureLoaded, textureName, initialTransform, isScrolling, isMobile]);
+  }, [isTextureLoaded, textureName, handleMouseMove, handleTouchMove, handleScroll, prefersReducedMotion]);
 
-  // Réinitialiser la transformation après un défilement
+  // Réinitialiser la transformation après un défilement - optimisé avec throttling
   useEffect(() => {
+    if (prefersReducedMotion) return;
+    
     let scrollTimeout: number;
+    let isThrottled = false;
     
     const handleScrollEnd = () => {
-      // Attendre que le défilement soit terminé avant de réactiver les transformations
+      // Throttle pour améliorer les performances
+      if (isThrottled) return;
+      isThrottled = true;
+      
+      // Nettoyer le timeout précédent
       clearTimeout(scrollTimeout);
+      
+      // Attendre que le défilement soit terminé
       scrollTimeout = window.setTimeout(() => {
         setIsScrolling(false);
+        isThrottled = false;
         
-        // Recalculer les transformations basées sur la position actuelle de la souris
         if (planetRef.current) {
           const planet = planetRef.current;
           planet.classList.remove('scrolling');
           
-          // Réactiver également les étoiles
           if (starsContainerRef.current) {
             starsContainerRef.current.classList.remove('scrolling-stars');
           }
-          
-          // Attendre un bref moment pour que la planète se stabilise
-          setTimeout(() => {
-            const rect = planet.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            
-            // Utiliser la dernière position connue de la souris ou 0 si non disponible
-            const rotateY = ((window.mouseX || centerX) - centerX) / window.innerWidth * 15;
-            const rotateX = ((window.mouseY || centerY) - centerY) / window.innerHeight * -15;
-            
-            planet.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
-          }, 50);
         }
       }, 150);
     };
     
-    window.addEventListener('scroll', handleScrollEnd, { passive: true });
-    
-    // Suivre la position de la souris globalement
+    // Suivre la position de la souris globalement avec throttling
     const trackMousePosition = (e: MouseEvent) => {
-      window.mouseX = e.clientX;
-      window.mouseY = e.clientY;
+      if (!isThrottled) {
+        window.mouseX = e.clientX;
+        window.mouseY = e.clientY;
+        isThrottled = true;
+        setTimeout(() => { isThrottled = false; }, 16); // ~60fps
+      }
     };
     
     // Ajouter la propriété au window pour stocker la position de la souris
@@ -172,18 +171,21 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       window.mouseY = 0;
     }
     
-    window.addEventListener('mousemove', trackMousePosition);
+    window.addEventListener('scroll', handleScrollEnd, { passive: true });
+    window.addEventListener('mousemove', trackMousePosition, { passive: true });
     
     return () => {
       window.removeEventListener('scroll', handleScrollEnd);
       window.removeEventListener('mousemove', trackMousePosition);
       clearTimeout(scrollTimeout);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   // Générer des positions d'étoiles fixes plutôt qu'aléatoires à chaque rendu
   const starPositions = useState(() => {
-    return Array.from({ length: 20 }, () => ({
+    // Réduire le nombre d'étoiles pour les appareils à faible performance
+    const count = isMobile ? 10 : 20;
+    return Array.from({ length: count }, () => ({
       top: `${Math.random() * 100}%`,
       left: `${Math.random() * 100}%`,
       opacity: Math.random() * 0.7 + 0.3,
@@ -194,26 +196,103 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     }));
   })[0];
 
+  // Simplifier les variants d'animation
   const planetVariants = {
-    hidden: { opacity: 0, scale: 0.8, rotate: -5 },
+    hidden: { opacity: 0, scale: 0.9 },
     visible: {
       opacity: 1,
       scale: 1,
-      rotate: 0,
       transition: { 
-        duration: 1,
-        ease: [0.22, 1, 0.36, 1],
-        delay: 0.3
+        duration: 0.7,
+        ease: "easeOut",
       }
     }
   };
+  
+  // Si l'utilisateur préfère les animations réduites, utiliser des animations simplifiées
+  if (prefersReducedMotion) {
+    return (
+      <div className="relative flex justify-center lg:col-span-2">
+        <div className="absolute -z-10 inset-0 flex items-center justify-center opacity-80">
+          <div className="w-full h-full max-w-md max-h-md rounded-full bg-gradient-to-r from-blue-600/30 to-purple-600/30 dark:from-blue-600 dark:to-purple-600 blur-[100px]"></div>
+        </div>
+        
+        <div 
+          ref={planetRef} 
+          className="planet relative w-64 h-64 lg:w-96 lg:h-96 rounded-full select-none"
+          style={{ 
+            '--planet-texture': isTextureLoaded 
+              ? `url('/assets/textures/planets/${textureName}.jpg')`
+              : `radial-gradient(circle at 30% 30%, ${color}DD, ${color}99 50%, ${color}66 80%)`,
+            '--planet-glow': `0 0 100px 10px ${color}66`,
+            backgroundImage: 'var(--planet-texture)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            boxShadow: 'var(--planet-glow)',
+            border: '1px solid rgba(255, 255, 255, 0.3)'
+          } as React.CSSProperties}
+        >
+          {/* Effet de brillance */}
+          <div 
+            className="absolute inset-0 rounded-full"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.5), transparent 70%)',
+              mixBlendMode: 'overlay'
+            }}
+          />
+          
+          {/* Atmosphère */}
+          <div 
+            className="absolute inset-0 rounded-full opacity-70"
+            style={{
+              backgroundImage: `radial-gradient(circle at 70% 70%, transparent 50%, ${color}22 80%, ${color}44 90%, ${color}66 95%)`
+            }}
+          />
+          
+          {/* Lumière réfléchie */}
+          <div 
+            className="absolute rounded-full opacity-60" 
+            style={{
+              width: '30%',
+              height: '30%',
+              left: '10%',
+              top: '10%',
+              backgroundImage: 'radial-gradient(circle at center, rgba(255,255,255,0.8) 0%, transparent 100%)'
+            }}
+          />
+          
+          {/* Anneaux pour Saturne */}
+          {planetName === 'saturne' && (
+            <div 
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+              style={{
+                width: '140%',
+                height: '20%',
+                background: 'linear-gradient(to right, transparent 5%, rgba(255, 255, 255, 0.5) 20%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 0.5) 80%, transparent 95%)',
+                borderRadius: '50%',
+                transform: 'rotateX(75deg)',
+                boxShadow: 'inset 0 0 15px rgba(0, 0, 0, 0.5)'
+              }}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
   
   return (
     <motion.div 
       className={`relative flex justify-center lg:col-span-2 ${isMobile ? 'touch-action-auto' : ''}`}
       variants={planetVariants}
+      initial="hidden"
+      animate="visible"
       layoutId={`planet-${planetName}`}
-      style={{ touchAction: 'pan-y' }}
+      style={{ 
+        touchAction: 'pan-y',
+        willChange: 'transform',
+        transform: 'translateZ(0)'
+      }}
     >
       <div className="absolute -z-10 inset-0 flex items-center justify-center opacity-80">
         <div className="w-full h-full max-w-md max-h-md rounded-full bg-gradient-to-r from-blue-600/30 to-purple-600/30 dark:from-blue-600 dark:to-purple-600 blur-[100px]"></div>
@@ -221,7 +300,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       
       <div 
         ref={planetRef} 
-        className={`planet relative w-64 h-64 lg:w-96 lg:h-96 rounded-full transition-all duration-300 select-none ${isScrolling ? 'scrolling' : ''} ${isMobile ? 'pointer-events-none' : ''}`}
+        className={`planet relative w-64 h-64 lg:w-96 lg:h-96 rounded-full select-none ${isScrolling ? 'scrolling' : ''} ${isMobile ? 'pointer-events-none' : ''}`}
         style={{ 
           '--planet-texture': isTextureLoaded 
             ? `url('/assets/textures/planets/${textureName}.jpg')`
@@ -321,7 +400,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       <style>
         {`
           .planet.scrolling {
-            transform: rotateY(0deg) rotateX(0deg) !important;
+            transform: translate3d(0,0,0) rotateY(0deg) rotateX(0deg) !important;
             transition: none !important;
           }
           

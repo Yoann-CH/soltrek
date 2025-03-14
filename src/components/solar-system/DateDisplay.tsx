@@ -3,7 +3,7 @@ import { DateDisplayProps } from './types';
 import { formatDate } from './utils';
 
 // Component d'affichage de la date/heure
-export function DateDisplay({ date, onDateSelect, showDatePicker, toggleDatePicker, isLiveDate }: DateDisplayProps) {
+export function DateDisplay({ date, onDateSelect, showDatePicker, toggleDatePicker, isLiveDate, isFullscreen }: DateDisplayProps) {
   const [dateInput, setDateInput] = useState<string>('');
   const [timeInput, setTimeInput] = useState<string>('');
   
@@ -49,14 +49,19 @@ export function DateDisplay({ date, onDateSelect, showDatePicker, toggleDatePick
     { label: '+1 an', days: 365 },
   ];
   
+  // Adapter le style en fonction du mode plein écran
+  const containerClassName = isFullscreen 
+    ? "w-full bg-black/80 backdrop-blur-md rounded-md text-white px-3 py-2 text-[10px] xs:text-xs sm:text-sm border border-gray-700/40 shadow-lg" 
+    : "absolute top-2 sm:top-4 left-2 sm:left-4 bg-black/70 backdrop-blur-md rounded-md text-white px-3 py-2 text-[10px] xs:text-xs sm:text-sm z-30 border border-gray-700/30 shadow-lg";
+  
   return (
-    <div className="absolute top-2 sm:top-4 left-2 sm:left-4 bg-black/70 backdrop-blur-md rounded-md text-white px-3 sm:px-3 py-2 sm:py-2 text-[10px] xs:text-xs sm:text-sm z-30 border border-gray-700/30 shadow-lg">
+    <div className={containerClassName}>
       <div className="flex items-center justify-between">
         <div>
           <div className="font-medium flex items-center">
             Position des planètes au:
           </div>
-          <div className={`max-w-[120px] xs:max-w-none truncate ${isLiveDate ? 'text-blue-300' : 'text-purple-300'}`}>
+          <div className={`max-w-[110px] xs:max-w-[150px] sm:max-w-none truncate ${isLiveDate ? 'text-blue-300' : 'text-purple-300'}`}>
             {formatDate(date)}
           </div>
         </div>
@@ -72,7 +77,7 @@ export function DateDisplay({ date, onDateSelect, showDatePicker, toggleDatePick
       </div>
       
       {showDatePicker && (
-        <div className="mt-2 sm:mt-3 p-3 sm:p-4 bg-gray-800/90 rounded-md shadow-lg border border-gray-700/30">
+        <div className={`mt-2 sm:mt-3 p-3 sm:p-4 bg-gray-800/90 rounded-md shadow-lg border border-gray-700/30 ${isFullscreen ? '' : 'absolute left-0 right-0'} z-40`}>
           {/* Navigation rapide */}
           <div className="mb-3 grid grid-cols-3 gap-1">
             {quickNavButtons.map((btn) => (
