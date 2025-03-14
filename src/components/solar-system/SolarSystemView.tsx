@@ -49,14 +49,39 @@ const PostProcessingEffects = React.memo(() => (
 PostProcessingEffects.displayName = 'PostProcessingEffects';
 
 // Composant optimisé pour le fond étoilé combiné avec des nébuleuses
-const SkyBackground = React.memo(({ starCount }: { starCount: number }) => (
-  <>
-    <Stars radius={120} depth={80} count={starCount} factor={4} saturation={0.5} fade speed={1} />
-    <Suspense fallback={null}>
-      <NebulaBackground />
-    </Suspense>
-  </>
-));
+const SkyBackground = React.memo(({ starCount, qualitySettings }: { starCount: number, qualitySettings: QualitySettings }) => {
+  // Optimisation des paramètres d'étoiles en fonction de la qualité
+  const starsProps = useMemo(() => {
+    if (qualitySettings.planetDetail <= 16) {
+      // Mode ultra-léger pour les appareils à faibles performances
+      return { radius: 80, depth: 50, factor: 3, saturation: 0.3, fade: true, speed: 0.5 };
+    }
+    
+    // Mode standard, mais toujours optimisé
+    return { radius: 100, depth: 60, factor: 4, saturation: 0.5, fade: true, speed: 1 };
+  }, [qualitySettings.planetDetail]);
+  
+  return (
+    <>
+      <Stars 
+        radius={starsProps.radius} 
+        depth={starsProps.depth} 
+        count={Math.min(starCount, 5000)} // Limiter au maximum à 5000 étoiles
+        factor={starsProps.factor} 
+        saturation={starsProps.saturation} 
+        fade={starsProps.fade} 
+        speed={starsProps.speed} 
+      />
+      
+      {/* Ne charger la nébuleuse que si la qualité est suffisante */}
+      {qualitySettings.planetDetail >= 32 && (
+        <Suspense fallback={null}>
+          <NebulaBackground />
+        </Suspense>
+      )}
+    </>
+  );
+});
 
 SkyBackground.displayName = 'SkyBackground';
 
@@ -239,7 +264,7 @@ export default function SolarSystemView({
       case 'low':
         return {
           dpr: [0.5, 0.7] as [number, number], // Résolution très réduite
-          starsCount: 1000, // Nombre d'étoiles minimal
+          starsCount: 500, // Nombre d'étoiles minimal (réduit de 1000 à 500)
           usePostProcessing: false, // Pas d'effets post-processing
           drawDistance: 60, // Distance de rendu réduite
           asteroidsCount: 20, // Très peu d'astéroïdes
@@ -252,7 +277,7 @@ export default function SolarSystemView({
       case 'medium':
         return {
           dpr: [0.8, fullscreenUpgrade ? 1.5 : 1.2] as [number, number], // Résolution moyenne
-          starsCount: fullscreenUpgrade ? 5000 : 3500, // Nombre d'étoiles modéré
+          starsCount: fullscreenUpgrade ? 2500 : 1500, // Nombre d'étoiles modéré (réduit de 5000/3500 à 2500/1500)
           usePostProcessing: true, // Activer les effets de base
           drawDistance: fullscreenUpgrade ? 100 : 80, // Distance de rendu moyenne
           asteroidsCount: fullscreenUpgrade ? 350 : 200, // Nombre modéré d'astéroïdes
@@ -265,7 +290,7 @@ export default function SolarSystemView({
       case 'high':
         return {
           dpr: [1, fullscreenUpgrade ? 2.5 : 2] as [number, number], // Haute résolution
-          starsCount: fullscreenUpgrade ? 12000 : 8000, // Grand nombre d'étoiles
+          starsCount: fullscreenUpgrade ? 5000 : 3000, // Grand nombre d'étoiles (réduit de 12000/8000 à 5000/3000)
           usePostProcessing: true, // Tous les effets activés
           drawDistance: fullscreenUpgrade ? 150 : 120, // Grande distance de rendu
           asteroidsCount: fullscreenUpgrade ? 1200 : 800, // Grand nombre d'astéroïdes
@@ -477,7 +502,7 @@ export default function SolarSystemView({
                   <Lighting qualitySettings={qualitySettings} />
                   
                   {/* Fond étoilé - nombre d'étoiles réduit sur les appareils à faible performance */}
-                  <SkyBackground starCount={qualitySettings.starsCount} />
+                  <SkyBackground starCount={qualitySettings.starsCount} qualitySettings={qualitySettings} />
                   
                   {/* Soleil */}
                   <Sun qualitySettings={qualitySettings} />

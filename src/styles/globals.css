@@ -1,3 +1,14 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Styles pour désactiver les animations pendant la vue 3D en plein écran */
+.disable-animations * {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+#solar-system-portal {
+  isolation: isolate;
+}

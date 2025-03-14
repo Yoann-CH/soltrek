@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { QualitySettings } from './types';
 
 // Interface pour les props de l'éclairage
@@ -6,45 +5,46 @@ interface LightingProps {
   qualitySettings?: QualitySettings;
 }
 
-// Composant pour l'éclairage global du système solaire
+// Composant pour l'éclairage global du système solaire - optimisé pour les performances
 export function Lighting({ qualitySettings }: LightingProps = {}) {
-  // Adapter l'intensité de l'éclairage ambiant en fonction de la qualité
-  const ambientLightIntensity = useMemo(() => {
-    if (!qualitySettings) return 0.3;
-    
-    switch (qualitySettings.planetDetail) {
-      case 16: return 0.4;     // Plus d'éclairage ambiant en basse qualité pour compenser
-      case 32: return 0.3;     // Qualité moyenne - normal
-      case 64: return 0.2;     // Moins d'éclairage ambiant en haute qualité pour des ombres plus prononcées
-      default: return 0.3;
-    }
-  }, [qualitySettings]);
-
-  // Intensité de l'éclairage hémisphérique
-  const hemisphereLightIntensity = useMemo(() => {
-    if (!qualitySettings) return 0.3;
-    
-    switch (qualitySettings.planetDetail) {
-      case 16: return 0.4;     // Plus d'éclairage en basse qualité
-      case 32: return 0.3;     // Qualité moyenne - normal
-      case 64: return 0.3;     // Qualité haute - normal
-      default: return 0.3;
-    }
-  }, [qualitySettings]);
-
+  // Déterminer si on doit utiliser un éclairage simplifié
+  const useSimplifiedLighting = !qualitySettings || qualitySettings.planetDetail <= 16;
+  
+  // Si l'éclairage simplifié est activé, on utilise une seule source de lumière
+  if (useSimplifiedLighting) {
+    return <ambientLight intensity={0.6} />; // Une seule lumière ambiante avec intensité optimisée
+  }
+  
+  // Éclairage standard avec performance améliorée pour les appareils qui le supportent
   return (
     <>
-      <ambientLight intensity={ambientLightIntensity} />
-      <hemisphereLight 
-        color="#ffffff" 
-        groundColor="#444444" 
-        intensity={hemisphereLightIntensity} 
-      />
-      {qualitySettings?.shadowsEnabled !== false && (
+      <ambientLight intensity={0.3} />
+      
+      {/* Lumière hémisphérique uniquement pour la qualité moyenne et haute */}
+      {qualitySettings.planetDetail >= 32 && (
+        <hemisphereLight 
+          color="#ffffff" 
+          groundColor="#444444" 
+          intensity={0.3} 
+        />
+      )}
+      
+      {/* Ombres uniquement si explicitement activées et en haute qualité */}
+      {qualitySettings.shadowsEnabled && qualitySettings.planetDetail >= 64 ? (
         <directionalLight 
           position={[0, 0, 0]} 
           intensity={1.2} 
-          castShadow 
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-camera-far={50}
+          shadow-camera-near={0.5}
+        />
+      ) : (
+        // Version sans ombre pour les autres qualités
+        <directionalLight 
+          position={[0, 0, 0]} 
+          intensity={1.0} 
         />
       )}
     </>
