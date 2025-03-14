@@ -13,6 +13,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
   const starsContainerRef = useRef<HTMLDivElement>(null);
   const [initialTransform, setInitialTransform] = useState<string | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
+  const [isUsingScrollTop, setIsUsingScrollTop] = useState(false);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const prefersReducedMotion = useReducedMotion();
   
@@ -38,9 +39,15 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     };
   }, [textureName]);
   
+  // Fonction pour vérifier si le ScrollToTop est en cours d'utilisation
+  const checkScrollTopState = useCallback(() => {
+    return document.body.classList.contains('using-scroll-top');
+  }, []);
+  
   // Optimisation: mémoriser les gestionnaires d'événements avec useCallback
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!planetRef.current || isScrolling || prefersReducedMotion) return;
+    // Ne pas appliquer d'effet si ScrollToTop est en cours d'utilisation
+    if (checkScrollTopState() || !planetRef.current || isScrolling || prefersReducedMotion) return;
     
     const planet = planetRef.current;
     const rect = planet.getBoundingClientRect();
@@ -58,11 +65,12 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     if (!initialTransform) {
       setInitialTransform(`rotateY(${rotateY}deg) rotateX(${rotateX}deg)`);
     }
-  }, [isScrolling, initialTransform, prefersReducedMotion]);
+  }, [isScrolling, initialTransform, prefersReducedMotion, checkScrollTopState]);
   
   // Gestionnaire d'événements pour les appareils tactiles optimisé
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (isMobile || !planetRef.current || isScrolling || prefersReducedMotion) return;
+    // Ne pas appliquer d'effet si ScrollToTop est en cours d'utilisation
+    if (checkScrollTopState() || isMobile || !planetRef.current || isScrolling || prefersReducedMotion) return;
     
     // S'assurer que nous n'interrompons que les interactions avec le modèle 3D
     const target = e.target as HTMLElement;
@@ -85,10 +93,13 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     // Mettre à jour les variables globales de position
     window.mouseX = touch.clientX;
     window.mouseY = touch.clientY;
-  }, [isMobile, isScrolling, prefersReducedMotion]);
+  }, [isMobile, isScrolling, prefersReducedMotion, checkScrollTopState]);
   
   // Gestionnaire de défilement optimisé
   const handleScroll = useCallback(() => {
+    // Ne pas modifier l'état si ScrollTop est actif
+    if (checkScrollTopState()) return;
+    
     if (!planetRef.current) return;
     
     setIsScrolling(true);
@@ -99,7 +110,26 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     if (starsContainerRef.current) {
       starsContainerRef.current.classList.add('scrolling-stars');
     }
-  }, []);
+  }, [checkScrollTopState]);
+  
+  // Vérifier périodiquement si ScrollToTop est en cours d'utilisation
+  useEffect(() => {
+    const checkScrollTopInterval = setInterval(() => {
+      const isUsingScrollTopNow = checkScrollTopState();
+      if (isUsingScrollTopNow !== isUsingScrollTop) {
+        setIsUsingScrollTop(isUsingScrollTopNow);
+        
+        // Si ScrollToTop devient actif, stabiliser la planète
+        if (isUsingScrollTopNow && planetRef.current) {
+          const planet = planetRef.current;
+          planet.classList.add('scrolling');
+          planet.style.transform = 'translate3d(0,0,0) rotateY(0deg) rotateX(0deg)';
+        }
+      }
+    }, 100);
+    
+    return () => clearInterval(checkScrollTopInterval);
+  }, [isUsingScrollTop, checkScrollTopState]);
   
   // Effet de rotation 3D sur la planète avec le mouvement de la souris
   useEffect(() => {
@@ -132,6 +162,9 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
     let isThrottled = false;
     
     const handleScrollEnd = () => {
+      // Ne pas réinitialiser si ScrollToTop est actif
+      if (checkScrollTopState()) return;
+      
       // Throttle pour améliorer les performances
       if (isThrottled) return;
       isThrottled = true;
@@ -179,7 +212,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       window.removeEventListener('mousemove', trackMousePosition);
       clearTimeout(scrollTimeout);
     };
-  }, [prefersReducedMotion]);
+  }, [prefersReducedMotion, checkScrollTopState]);
 
   // Générer des positions d'étoiles fixes plutôt qu'aléatoires à chaque rendu
   const starPositions = useState(() => {
@@ -300,7 +333,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       
       <div 
         ref={planetRef} 
-        className={`planet relative w-64 h-64 lg:w-96 lg:h-96 rounded-full select-none ${isScrolling ? 'scrolling' : ''} ${isMobile ? 'pointer-events-none' : ''}`}
+        className={`planet relative w-64 h-64 lg:w-96 lg:h-96 rounded-full select-none ${isScrolling || isUsingScrollTop ? 'scrolling' : ''} ${isMobile ? 'pointer-events-none' : ''}`}
         style={{ 
           '--planet-texture': isTextureLoaded 
             ? `url('/assets/textures/planets/${textureName}.jpg')`
@@ -367,7 +400,7 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
       {/* Étoiles/particules autour de la planète - Utilisation d'un conteneur avec position relative */}
       <div 
         ref={starsContainerRef} 
-        className={`absolute inset-0 -z-10 dark:block hidden ${isScrolling ? 'scrolling-stars' : ''}`}
+        className={`absolute inset-0 -z-10 dark:block hidden ${isScrolling || isUsingScrollTop ? 'scrolling-stars' : ''}`}
         style={{
           position: 'absolute',
           top: 0,
@@ -423,6 +456,20 @@ export function Planet3DView({ planetName, textureName, color }: Planet3DViewPro
               transition: none !important;
               animation: none !important;
               transform: none !important;
+            }
+          }
+          
+          /* Support pour ScrollToTop */
+          body.using-scroll-top .planet {
+            transform: translate3d(0,0,0) rotateY(0deg) rotateX(0deg) !important;
+            transition: none !important;
+          }
+          
+          /* Optimisations mobiles pour ScrollToTop */
+          @media (max-width: 768px) {
+            body.using-scroll-top .planet {
+              opacity: 1;
+              transform: translate3d(0,0,0) !important;
             }
           }
         `}

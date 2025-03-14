@@ -82,6 +82,9 @@ export default function PlanetDetailPage() {
 
   // Scroll to top when component mounts or planetName changes - optimisé pour de meilleures performances
   const scrollToTop = useCallback(() => {
+    // Ajouter une classe pour signaler que nous utilisons une fonction de scroll programmée
+    document.body.classList.add('using-scroll-top');
+    
     // Scroll to top immediately with hardware acceleration
     window.scrollTo({
       top: 0,
@@ -96,6 +99,11 @@ export default function PlanetDetailPage() {
         left: 0,
         behavior: 'auto'
       });
+      
+      // Retirer la classe après un délai pour permettre à la page de se stabiliser
+      setTimeout(() => {
+        document.body.classList.remove('using-scroll-top');
+      }, 100);
     }, 50);
     
     return () => clearTimeout(timer);
