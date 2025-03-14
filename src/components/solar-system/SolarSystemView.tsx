@@ -146,9 +146,6 @@ const PlanetSelector = React.memo(({
   showPlanetMenu, 
   togglePlanetMenu,
   focusOnPlanet,
-  // isFullscreen est reçu pour maintenir une API cohérente, même s'il n'est pas utilisé directement
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  isFullscreen
 }: { 
   focusedPlanetIndex: number | null,
   showPlanetMenu: boolean,
