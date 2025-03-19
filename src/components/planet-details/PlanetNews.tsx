@@ -1,7 +1,23 @@
-import { motion } from 'framer-motion';
 import { usePlanetNews } from '../../lib/api';
 import { format, isValid, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useState, useEffect, useRef } from 'react';
+
+// Style pour l'animation wave du skeleton
+const skeletonWaveStyle = `
+  @keyframes skeletonWave {
+    0% {
+      transform: translateX(-100%);
+    }
+    50%, 100% {
+      transform: translateX(100%);
+    }
+  }
+  
+  .skeleton-wave {
+    animation: skeletonWave 1.5s infinite;
+  }
+`;
 
 interface PlanetNewsProps {
   planetName: string;
@@ -21,27 +37,136 @@ const formatDate = (dateString: string): string => {
   }
 };
 
+// Composant d'image optimisée avec chargement progressif
+const OptimizedImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
+  const [imageSrc, setImageSrc] = useState('/assets/default.webp');
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  
+  useEffect(() => {
+    // Réinitialiser l'état quand la source change
+    setImageLoaded(false);
+    setHasError(false);
+    setImageSrc('/assets/default.webp');
+    
+    // Observer quand l'image entre dans le viewport
+    const observer = new IntersectionObserver((entries) => {
+      const [entry] = entries;
+      if (entry.isIntersecting) {
+        // On crée une nouvelle image pour précharger
+        const img = new Image();
+        img.src = src;
+        img.onload = () => {
+          setImageSrc(src);
+          setImageLoaded(true);
+        };
+        img.onerror = () => {
+          setHasError(true);
+          setImageSrc('/assets/default.webp');
+        };
+        
+        // Arrêter d'observer une fois détecté
+        if (imgRef.current) observer.unobserve(imgRef.current);
+      }
+    }, {
+      rootMargin: '200px 0px', // Précharger quand on est à 200px de l'image
+      threshold: 0.01
+    });
+    
+    if (imgRef.current) observer.observe(imgRef.current);
+    
+    return () => {
+      if (imgRef.current) observer.unobserve(imgRef.current);
+    };
+  }, [src]);
+
+  return (
+    <div className="relative overflow-hidden bg-gray-800 aspect-video">
+      <img
+        ref={imgRef}
+        src={imageSrc}
+        alt={alt}
+        className={`${className} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-80'}`}
+        onError={() => {
+          if (!hasError) {
+            setHasError(true);
+            setImageSrc('/assets/default.webp');
+          }
+        }}
+      />
+      {!imageLoaded && !hasError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-800/40">
+          <div className="w-8 h-8 border-t-2 border-b-2 border-blue-400 rounded-full animate-spin"></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Composant de skeleton pour les cartes d'actualités
+const NewsCardSkeleton = () => (
+  <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-lg shadow-blue-500/10 dark:shadow-blue-500/10 backdrop-blur-sm">
+    <div className="aspect-video bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+    </div>
+    <div className="p-3 sm:p-4 space-y-3">
+      <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-3/4 animate-pulse relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+      </div>
+      <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-1/2 animate-pulse relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
+        <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
+        <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-2/3 animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 export function PlanetNews({ planetName }: PlanetNewsProps) {
   const { news, loading, error } = usePlanetNews(planetName);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Injection du style pour l'animation wave
+  useEffect(() => {
+    // Vérifier si le style est déjà présent
+    if (!document.getElementById('skeleton-wave-style')) {
+      const styleElement = document.createElement('style');
+      styleElement.id = 'skeleton-wave-style';
+      styleElement.innerHTML = skeletonWaveStyle;
+      document.head.appendChild(styleElement);
+
+      // Nettoyage lors du démontage
+      return () => {
+        const styleToRemove = document.getElementById('skeleton-wave-style');
+        if (styleToRemove) {
+          document.head.removeChild(styleToRemove);
+        }
+      };
+    }
+  }, []);
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Actualités</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Actualités</h2>
+          <div className="h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-32 animate-pulse relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+          </div>
+        </div>
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5">
-              <div className="aspect-video bg-gray-200 dark:bg-gray-700 animate-pulse" />
-              <div className="p-3 sm:p-4 space-y-3">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 animate-pulse" />
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse" />
-                <div className="space-y-2">
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 animate-pulse" />
-                </div>
-              </div>
-            </div>
+          {[...Array(6)].map((_, i) => (
+            <NewsCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -71,12 +196,7 @@ export function PlanetNews({ planetName }: PlanetNewsProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-4 sm:space-y-6"
-    >
+    <div className="space-y-4 sm:space-y-6" ref={containerRef}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Actualités</h2>
         <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2 flex-wrap">
@@ -89,27 +209,18 @@ export function PlanetNews({ planetName }: PlanetNewsProps) {
 
       <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {news.map((article) => (
-          <motion.a
+          <a
             key={article.id}
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
             className="group block bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
           >
             <div className="aspect-video relative overflow-hidden">
-              <img
-                src={article.image_url || '/assets/default.webp'}
+              <OptimizedImage 
+                src={article.image_url || '/assets/default.webp'} 
                 alt={article.title}
                 className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (!target.src.includes('/assets/default.webp')) {
-                    console.log('Image non trouvée, utilisation de la valeur par défaut');
-                    target.src = '/assets/default.webp';
-                  }
-                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
               <div className="absolute bottom-2 left-3 right-3">
@@ -127,9 +238,9 @@ export function PlanetNews({ planetName }: PlanetNewsProps) {
                 {article.summary}
               </p>
             </div>
-          </motion.a>
+          </a>
         ))}
       </div>
-    </motion.div>
+    </div>
   );
-} 
+}

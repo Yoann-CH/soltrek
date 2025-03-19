@@ -14,6 +14,73 @@ import ScrollAnimationContainer from '../components/ScrollAnimationContainer';
 import { format, isValid, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
+// Composant d'image optimisée avec chargement progressif
+const OptimizedImage = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
+  const [imageSrc, setImageSrc] = useState('/assets/default.webp');
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  
+  useEffect(() => {
+    // Réinitialiser l'état quand la source change
+    setImageLoaded(false);
+    setHasError(false);
+    setImageSrc('/assets/default.webp');
+    
+    // Observer quand l'image entre dans le viewport
+    const observer = new IntersectionObserver((entries) => {
+      const [entry] = entries;
+      if (entry.isIntersecting) {
+        // On crée une nouvelle image pour précharger
+        const img = new Image();
+        img.src = src;
+        img.onload = () => {
+          setImageSrc(src);
+          setImageLoaded(true);
+        };
+        img.onerror = () => {
+          setHasError(true);
+          setImageSrc('/assets/default.webp');
+        };
+        
+        // Arrêter d'observer une fois détecté
+        if (imgRef.current) observer.unobserve(imgRef.current);
+      }
+    }, {
+      rootMargin: '300px 0px', // Précharger quand on est à 300px de l'image
+      threshold: 0.01
+    });
+    
+    if (imgRef.current) observer.observe(imgRef.current);
+    
+    return () => {
+      if (imgRef.current) observer.unobserve(imgRef.current);
+    };
+  }, [src]);
+
+  return (
+    <div className="relative overflow-hidden bg-gray-800 aspect-video">
+      <img
+        ref={imgRef}
+        src={imageSrc}
+        alt={alt}
+        className={`${className || ''} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-80'}`}
+        onError={() => {
+          if (!hasError) {
+            setHasError(true);
+            setImageSrc('/assets/default.webp');
+          }
+        }}
+      />
+      {!imageLoaded && !hasError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-800/40">
+          <div className="w-8 h-8 border-t-2 border-b-2 border-blue-400 rounded-full animate-spin"></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Interfaces pour les APIs du navigateur non standardisées
 interface FullscreenDocument extends Document {
   mozFullScreenElement?: Element;
@@ -390,6 +457,50 @@ const formatDate = (dateString: string): string => {
   }
 };
 
+// Style pour l'animation wave du skeleton
+const skeletonWaveStyle = `
+  @keyframes skeletonWave {
+    0% {
+      transform: translateX(-100%);
+    }
+    50%, 100% {
+      transform: translateX(100%);
+    }
+  }
+  
+  .skeleton-wave {
+    animation: skeletonWave 1.5s infinite;
+  }
+`;
+
+// Composant de skeleton pour les cartes d'actualités
+const NewsCardSkeleton = () => (
+  <div className="bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden shadow-lg shadow-blue-500/10 dark:shadow-blue-500/10 backdrop-blur-sm">
+    <div className="aspect-video bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+    </div>
+    <div className="p-3 sm:p-4 space-y-3">
+      <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-3/4 animate-pulse relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+      </div>
+      <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-1/2 animate-pulse relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
+        <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
+        <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-2/3 animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 export default function ExplorePage() {
   // État pour gérer le chargement
   const [isLoading, setIsLoading] = useState(() => {
@@ -509,21 +620,52 @@ export default function ExplorePage() {
     };
   }, []);
   
-  // Lazy load des Skeletons
+  // Injection du style pour l'animation wave
+  useEffect(() => {
+    // Vérifier si le style est déjà présent
+    if (!document.getElementById('skeleton-wave-style')) {
+      const styleElement = document.createElement('style');
+      styleElement.id = 'skeleton-wave-style';
+      styleElement.innerHTML = skeletonWaveStyle;
+      document.head.appendChild(styleElement);
+
+      // Nettoyage lors du démontage
+      return () => {
+        const styleToRemove = document.getElementById('skeleton-wave-style');
+        if (styleToRemove) {
+          document.head.removeChild(styleToRemove);
+        }
+      };
+    }
+  }, []);
+  
+  // Modifier la partie LoadingSkeleton - remplacer la section des planètes
   const LoadingSkeleton = useCallback(() => (
     <div className="min-h-screen bg-gray-50 dark:bg-black py-6 px-3 sm:py-8 sm:px-6 md:py-10 transition-colors bg-cover bg-fixed">
       <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-white/50 dark:from-blue-900/10 dark:to-black/80 pointer-events-none"></div>
       <div className="max-w-7xl mx-auto relative z-10">
-        <div className="w-36 sm:w-48 h-8 sm:h-10 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-md mb-4 sm:mb-8 animate-pulse"></div>
-        <div className="w-full h-5 sm:h-6 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-md mb-8 sm:mb-12 animate-pulse"></div>
+        <div className="w-36 sm:w-48 h-8 sm:h-10 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-md mb-4 sm:mb-8 animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
+        <div className="w-full h-5 sm:h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-md mb-8 sm:mb-12 animate-pulse relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+        </div>
         
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
           {[...Array(8)].map((_, index) => (
-            <div key={index} className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-md rounded-lg p-4 sm:p-6 animate-pulse border border-gray-200/40 dark:border-gray-700/40">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-white/50 dark:bg-gray-700/50 rounded-full mx-auto mb-3 sm:mb-4 animate-pulse"></div>
-              <div className="w-3/4 h-3 sm:h-4 bg-white/50 dark:bg-gray-700/50 rounded mx-auto mb-2 sm:mb-3 animate-pulse"></div>
-              <div className="w-full h-2 sm:h-3 bg-white/50 dark:bg-gray-700/50 rounded mb-1 sm:mb-2 animate-pulse"></div>
-              <div className="w-5/6 h-2 sm:h-3 bg-white/50 dark:bg-gray-700/50 rounded animate-pulse"></div>
+            <div key={index} className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-md rounded-lg p-4 sm:p-6 border border-gray-200/40 dark:border-gray-700/40 relative overflow-hidden">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mx-auto mb-3 sm:mb-4 animate-pulse relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+              </div>
+              <div className="w-3/4 h-3 sm:h-4 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mx-auto mb-2 sm:mb-3 animate-pulse relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+              </div>
+              <div className="w-full h-2 sm:h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mb-1 sm:mb-2 animate-pulse relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+              </div>
+              <div className="w-5/6 h-2 sm:h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+              </div>
             </div>
           ))}
         </div>
@@ -657,20 +799,9 @@ export default function ExplorePage() {
             
             {/* Rendu conditionnel des actualités */}
             {newsLoading ? (
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5">
-                    <div className="aspect-video bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                    <div className="p-3 sm:p-4 space-y-3">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 animate-pulse" />
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse" />
-                      <div className="space-y-2">
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 animate-pulse" />
-                      </div>
-                    </div>
-                  </div>
+              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {[...Array(6)].map((_, i) => (
+                  <NewsCardSkeleton key={i} />
                 ))}
               </div>
             ) : newsError ? (
@@ -705,21 +836,13 @@ export default function ExplorePage() {
                       href={article.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full"
+                      className="group block bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full"
                     >
                       <div className="aspect-video relative overflow-hidden">
-                        <img
+                        <OptimizedImage
                           src={article.image_url || '/assets/default.webp'}
                           alt={article.title}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            if (!target.src.includes('/assets/default.webp')) {
-                              console.log('Image non trouvée, utilisation de la valeur par défaut');
-                              target.src = '/assets/default.webp';
-                            }
-                          }}
+                          className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
                         <div className="absolute bottom-2 left-3 right-3">
@@ -730,7 +853,7 @@ export default function ExplorePage() {
                         </div>
                       </div>
                       <div className="p-3 sm:p-4">
-                        <h3 className="text-sm sm:text-base font-semibold text-gray-200 dark:text-gray-100 mb-2 line-clamp-2">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-200 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-400 dark:group-hover:text-blue-300 transition-colors">
                           {article.title}
                         </h3>
                         <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
@@ -916,20 +1039,9 @@ export default function ExplorePage() {
             </div>
             
             {newsLoading ? (
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5">
-                    <div className="aspect-video bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                    <div className="p-3 sm:p-4 space-y-3">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 animate-pulse" />
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse" />
-                      <div className="space-y-2">
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 animate-pulse" />
-                      </div>
-                    </div>
-                  </div>
+              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {[...Array(6)].map((_, i) => (
+                  <NewsCardSkeleton key={i} />
                 ))}
               </div>
             ) : newsError ? (
@@ -958,60 +1070,37 @@ export default function ExplorePage() {
                 </div>
                 
                 <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {spaceNews.slice(0, 6).map((article, index) => (
-                    <ScrollAnimationContainer
+                  {spaceNews.slice(0, 6).map((article) => (
+                    <a
                       key={article.id}
-                      type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "scale"}
-                      className="h-full"
-                      delay={Math.min(index * 20, 100)} // Limiter le délai maximum
-                      triggerOnce={optimizedAnimationProps.triggerOnce}
-                      exitAnimation={false}
-                      threshold={0.05}
-                      rootMargin="200px 0px"
-                      duration={optimizedAnimationProps.duration}
-                      disableOnLowEnd={true}
-                      force3d={optimizedAnimationProps.force3d}
-                      gpuRender={optimizedAnimationProps.gpuRender}
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group block bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full"
                     >
-                      <a
-                        href={article.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group block bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/50 dark:hover:bg-gray-800/50 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full transform transition-transform hover:scale-[1.02] hover:-translate-y-1"
-                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
-                      >
-                        <div className="aspect-video relative overflow-hidden">
-                          <img
-                            src={article.image_url || '/assets/default.webp'}
-                            alt={article.title}
-                            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
-                            loading="lazy"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              if (!target.src.includes('/assets/default.webp')) {
-                                console.log('Image non trouvée, utilisation de la valeur par défaut');
-                                target.src = '/assets/default.webp';
-                              }
-                            }}
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                          <div className="absolute bottom-2 left-3 right-3">
-                            <p className="text-xs sm:text-sm text-gray-200">
-                              {formatDate(article.published_at)}
-                            </p>
-                            <p className="text-xs text-gray-300">{article.news_site}</p>
-                          </div>
-                        </div>
-                        <div className="p-3 sm:p-4">
-                          <h3 className="text-sm sm:text-base font-semibold text-gray-200 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-400 dark:group-hover:text-blue-300 transition-colors">
-                            {article.title}
-                          </h3>
-                          <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
-                            {article.summary}
+                      <div className="aspect-video relative overflow-hidden">
+                        <OptimizedImage
+                          src={article.image_url || '/assets/default.webp'}
+                          alt={article.title}
+                          className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div className="absolute bottom-2 left-3 right-3">
+                          <p className="text-xs sm:text-sm text-gray-200">
+                            {formatDate(article.published_at)}
                           </p>
+                          <p className="text-xs text-gray-300">{article.news_site}</p>
                         </div>
-                      </a>
-                    </ScrollAnimationContainer>
+                      </div>
+                      <div className="p-3 sm:p-4">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-200 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-400 dark:group-hover:text-blue-300 transition-colors">
+                          {article.title}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
+                          {article.summary}
+                        </p>
+                      </div>
+                    </a>
                   ))}
                 </div>
               </>

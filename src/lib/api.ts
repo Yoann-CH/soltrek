@@ -615,6 +615,11 @@ export interface SpaceNewsArticle {
   }[];
 }
 
+// Cache pour les actualités
+const newsCache: Record<string, { data: SpaceNewsArticle[]; timestamp: number }> = {};
+// Durée de validité du cache (15 minutes)
+const NEWS_CACHE_DURATION = 15 * 60 * 1000;
+
 /**
  * Récupère les actualités liées à une planète spécifique
  * Note: Les articles sont en anglais car ils proviennent d'une source anglophone
@@ -622,8 +627,25 @@ export interface SpaceNewsArticle {
 export async function fetchPlanetNews(planetName: string): Promise<SpaceNewsArticle[]> {
   try {
     const englishName = planetTextureMap[planetName.toLowerCase()] || planetName;
+    const cacheKey = englishName || 'general';
+    
+    // Vérifier le cache
+    const now = Date.now();
+    if (
+      newsCache[cacheKey] && 
+      now - newsCache[cacheKey].timestamp < NEWS_CACHE_DURATION
+    ) {
+      console.log(`Utilisation des actualités en cache pour ${cacheKey}`);
+      return newsCache[cacheKey].data;
+    }
+    
+    console.log(`Récupération des actualités pour ${cacheKey} depuis l'API`);
+    
+    // Pour les requêtes d'actualités générales (sans terme spécifique)
+    const searchTerm = englishName === "" ? "space" : englishName;
+    
     const response = await fetch(
-      `https://api.spaceflightnewsapi.net/v4/articles/?limit=6&search=${englishName}`
+      `https://api.spaceflightnewsapi.net/v4/articles/?limit=6&search=${searchTerm}`
     );
 
     if (!response.ok) {
@@ -631,7 +653,28 @@ export async function fetchPlanetNews(planetName: string): Promise<SpaceNewsArti
     }
 
     const data = await response.json();
-    return data.results || [];
+    const articles = data.results || [];
+    
+    // Préchargement des images pour une meilleure performance
+    if (articles.length > 0) {
+      // Précharger les images en arrière-plan
+      setTimeout(() => {
+        articles.forEach((article: SpaceNewsArticle) => {
+          if (article.image_url) {
+            const img = new Image();
+            img.src = article.image_url;
+          }
+        });
+      }, 100);
+    }
+    
+    // Mettre en cache
+    newsCache[cacheKey] = {
+      data: articles,
+      timestamp: now
+    };
+    
+    return articles;
   } catch (error) {
     console.error('Erreur lors de la récupération des actualités:', error);
     return [];
@@ -647,19 +690,32 @@ export function usePlanetNews(planetName: string) {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+    
     const loadNews = async () => {
       try {
         setLoading(true);
         const data = await fetchPlanetNews(planetName);
-        setNews(data);
-        setLoading(false);
+        
+        if (isMounted) {
+          setNews(data);
+          setLoading(false);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Une erreur est survenue'));
-        setLoading(false);
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error('Une erreur est survenue'));
+          setLoading(false);
+        }
       }
     };
 
     loadNews();
+    
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, [planetName]);
 
   return { news, loading, error };
