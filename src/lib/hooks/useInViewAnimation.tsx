@@ -2,6 +2,14 @@ import { useState, useEffect, useRef, RefObject } from 'react';
 import { useLoading } from '../loadingContext';
 import { motion, Variants, HTMLMotionProps } from 'framer-motion';
 
+// État global pour suivre la visibilité de la page
+let pageIsVisible = true;
+
+// Fonction pour détecter l'état de visibilité de la page
+document.addEventListener('visibilitychange', () => {
+  pageIsVisible = document.visibilityState === 'visible';
+});
+
 // Détection des appareils à faibles performances
 const isLowEndDevice = () => {
   // Détecte si l'appareil a peu de mémoire ou un processeur lent
@@ -61,10 +69,34 @@ export function useInViewAnimation({
   const [animating, setAnimating] = useState(false);
   const ref = useRef<HTMLElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const wasInView = useRef<boolean>(false);
   const { appLoaded } = useLoading();
 
   // Vérifier si nous devons désactiver les animations
   const shouldDisableAnimation = disableOnLowEnd && isLowEndDevice();
+
+  // Gestionnaire de visibilité pour préserver l'état entre les changements d'onglet
+  useEffect(() => {
+    // Fonction pour gérer le changement de visibilité
+    const handleVisibilityChange = () => {
+      // Si la page redevient visible et que l'élément était visible avant de quitter l'onglet
+      if (document.visibilityState === 'visible' && wasInView.current) {
+        // Restaurer l'état précédent
+        setIsInView(true);
+      }
+    };
+
+    // Stocker l'état actuel de visibilité pour référence future
+    wasInView.current = isInView;
+
+    // Ajouter le gestionnaire d'événement
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Nettoyer lors du démontage
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isInView]);
 
   useEffect(() => {
     // Attendre que l'application soit chargée avant d'initialiser l'observer
@@ -91,6 +123,9 @@ export function useInViewAnimation({
     };
 
     const handleIntersection = (entries: IntersectionObserverEntry[]) => {
+      // Ne pas traiter les intersections si l'onglet n'est pas visible
+      if (!pageIsVisible) return;
+      
       const entry = entries[0];
       
       // Si on dépasse la limite d'animations simultanées, on reporte cette animation
@@ -126,6 +161,9 @@ export function useInViewAnimation({
       } 
       // Ne déclencher l'animation que si l'élément est visible
       else if (entry.isIntersecting) {
+        // Mémoriser que cet élément a été vu
+        wasInView.current = true;
+        
         // Activer will-change uniquement pendant l'animation
         setAnimating(true);
         activeAnimationsCount++;

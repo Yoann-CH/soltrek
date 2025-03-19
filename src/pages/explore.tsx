@@ -47,7 +47,7 @@ const OptimizedImage = ({ src, alt, className }: { src: string, alt: string, cla
         if (imgRef.current) observer.unobserve(imgRef.current);
       }
     }, {
-      rootMargin: '300px 0px', // Précharger quand on est à 300px de l'image
+      rootMargin: '200px 0px', // Précharger quand on est à 200px de l'image
       threshold: 0.01
     });
     
@@ -64,7 +64,7 @@ const OptimizedImage = ({ src, alt, className }: { src: string, alt: string, cla
         ref={imgRef}
         src={imageSrc}
         alt={alt}
-        className={`${className || ''} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-80'}`}
+        className={`${className} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-80'}`}
         onError={() => {
           if (!hasError) {
             setHasError(true);
@@ -475,7 +475,7 @@ const skeletonWaveStyle = `
 
 // Composant de skeleton pour les cartes d'actualités
 const NewsCardSkeleton = () => (
-  <div className="bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden shadow-lg shadow-blue-500/10 dark:shadow-blue-500/10 backdrop-blur-sm">
+  <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden shadow-lg shadow-blue-500/10 dark:shadow-blue-500/10 backdrop-blur-sm">
     <div className="aspect-video bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
     </div>
@@ -501,6 +501,40 @@ const NewsCardSkeleton = () => (
   </div>
 );
 
+// Ajouter à nouveau le LoadingSkeleton qui a été supprimé
+const LoadingSkeleton = () => (
+  <div className="min-h-screen bg-gray-50 dark:bg-black py-6 px-3 sm:py-8 sm:px-6 md:py-10 transition-colors bg-cover bg-fixed">
+    <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-white/50 dark:from-blue-900/10 dark:to-black/80 pointer-events-none"></div>
+    <div className="max-w-7xl mx-auto relative z-10">
+      <div className="w-36 sm:w-48 h-8 sm:h-10 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-md mb-4 sm:mb-8 animate-pulse relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+      </div>
+      <div className="w-full h-5 sm:h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-md mb-8 sm:mb-12 animate-pulse relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+      </div>
+      
+      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+        {[...Array(8)].map((_, index) => (
+          <div key={index} className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-md rounded-lg p-4 sm:p-6 border border-gray-200/40 dark:border-gray-700/40 relative overflow-hidden">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mx-auto mb-3 sm:mb-4 animate-pulse relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+            </div>
+            <div className="w-3/4 h-3 sm:h-4 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mx-auto mb-2 sm:mb-3 animate-pulse relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+            </div>
+            <div className="w-full h-2 sm:h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mb-1 sm:mb-2 animate-pulse relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+            </div>
+            <div className="w-5/6 h-2 sm:h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
 export default function ExplorePage() {
   // État pour gérer le chargement
   const [isLoading, setIsLoading] = useState(() => {
@@ -511,13 +545,47 @@ export default function ExplorePage() {
   });
   const [apiError, setApiError] = useState<string | null>(null);
   
-  // État pour les actualités spatiales
+  // État pour les actualités spatiales avec la logique de PlanetNews
   const [spaceNews, setSpaceNews] = useState<SpaceNewsArticle[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [newsError, setNewsError] = useState<Error | null>(null);
   
   // Détection des préférences d'animation réduites
   const prefersReducedMotion = useReducedMotion();
+  
+  // État pour suivre si la page a déjà été affichée ou non (pour éviter de rejouer les animations)
+  const [hasBeenVisible, setHasBeenVisible] = useState(true);
+  const pageStateRef = useRef({
+    // On utilisera ce ref pour stocker l'état de la page entre les changements de visibilité
+    animationsPlayed: false
+  });
+  
+  // Gestionnaire de visibilité pour préserver l'état entre les changements d'onglet
+  useEffect(() => {
+    // Fonction pour gérer le changement de visibilité
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Quand l'utilisateur revient sur l'onglet, on indique que les animations ont déjà été jouées
+        if (pageStateRef.current.animationsPlayed) {
+          setHasBeenVisible(true);
+        }
+      } else {
+        // Quand l'utilisateur quitte l'onglet, on mémorise que les animations ont été jouées
+        pageStateRef.current.animationsPlayed = true;
+      }
+    };
+
+    // Ajouter le gestionnaire d'événement
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Marquer que les animations ont été jouées après le premier rendu
+    pageStateRef.current.animationsPlayed = true;
+
+    // Nettoyer lors du démontage
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
   
   // Détection des appareils à faible performance - une approche simple basée sur l'UA
   const [isLowEndDevice, setIsLowEndDevice] = useState(false);
@@ -595,32 +663,51 @@ export default function ExplorePage() {
     }
   }, [isLoading]);
   
-  // Charger les actualités spatiales générales
+  // Charger les actualités spatiales générales avec la même logique que PlanetNews
   useEffect(() => {
+    let isMounted = true;
     const controller = new AbortController();
     
     const loadNews = async () => {
       try {
         setNewsLoading(true);
-        // Recherche d'actualités avec le terme "solar system" pour obtenir des actualités générales
+        // Recherche d'actualités avec le terme "space" pour obtenir des actualités générales
         const data = await fetchPlanetNews("");
-        setSpaceNews(data);
-        setNewsLoading(false);
+        
+        if (isMounted) {
+          setSpaceNews(data);
+          setNewsLoading(false);
+          
+          // Ajouter le préchargement de toutes les images comme dans fetchPlanetNews
+          if (data.length > 0) {
+            // Précharger les images en arrière-plan
+            setTimeout(() => {
+              data.forEach((article: SpaceNewsArticle) => {
+                if (article.image_url) {
+                  const img = new Image();
+                  img.src = article.image_url;
+                }
+              });
+            }, 100);
+          }
+        }
       } catch (err) {
-        console.error("Erreur lors du chargement des actualités:", err);
-        setNewsError(err instanceof Error ? err : new Error('Une erreur est survenue'));
-        setNewsLoading(false);
+        if (isMounted) {
+          setNewsError(err instanceof Error ? err : new Error('Une erreur est survenue'));
+          setNewsLoading(false);
+        }
       }
     };
 
     loadNews();
     
     return () => {
+      isMounted = false;
       controller.abort();
     };
   }, []);
   
-  // Injection du style pour l'animation wave
+  // Mise à jour de l'injection du style pour l'animation wave comme dans PlanetNews
   useEffect(() => {
     // Vérifier si le style est déjà présent
     if (!document.getElementById('skeleton-wave-style')) {
@@ -638,40 +725,6 @@ export default function ExplorePage() {
       };
     }
   }, []);
-  
-  // Modifier la partie LoadingSkeleton - remplacer la section des planètes
-  const LoadingSkeleton = useCallback(() => (
-    <div className="min-h-screen bg-gray-50 dark:bg-black py-6 px-3 sm:py-8 sm:px-6 md:py-10 transition-colors bg-cover bg-fixed">
-      <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-white/50 dark:from-blue-900/10 dark:to-black/80 pointer-events-none"></div>
-      <div className="max-w-7xl mx-auto relative z-10">
-        <div className="w-36 sm:w-48 h-8 sm:h-10 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-md mb-4 sm:mb-8 animate-pulse relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
-        </div>
-        <div className="w-full h-5 sm:h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-md mb-8 sm:mb-12 animate-pulse relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
-        </div>
-        
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-          {[...Array(8)].map((_, index) => (
-            <div key={index} className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-md rounded-lg p-4 sm:p-6 border border-gray-200/40 dark:border-gray-700/40 relative overflow-hidden">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mx-auto mb-3 sm:mb-4 animate-pulse relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
-              </div>
-              <div className="w-3/4 h-3 sm:h-4 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mx-auto mb-2 sm:mb-3 animate-pulse relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
-              </div>
-              <div className="w-full h-2 sm:h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full mb-1 sm:mb-2 animate-pulse relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
-              </div>
-              <div className="w-5/6 h-2 sm:h-3 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  ), []);
   
   // Calculer les paramètres d'animation optimisés en fonction des préférences et des capacités de l'appareil
   const optimizedAnimationProps = useMemo(() => {
@@ -698,7 +751,7 @@ export default function ExplorePage() {
       planetCount: 5,
       enableParallax: true,
       showNebulae: true,
-      triggerOnce: true,
+      triggerOnce: true, // Forcer triggerOnce à true pour éviter que les animations se rejouent
       duration: 0.4,
       delay: 100,
       disableStaggering: false,
@@ -785,7 +838,7 @@ export default function ExplorePage() {
             </div>
           </div>
           
-          {/* Section actualités */}
+          {/* Section actualités avec le rendu identique à PlanetNews */}
           <div className="relative mt-16 mb-10">
             <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-blue-500/20 rounded-full filter blur-3xl" />
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-500/10 dark:bg-purple-500/20 rounded-full filter blur-3xl" />
@@ -797,12 +850,19 @@ export default function ExplorePage() {
               <div className="h-px w-full max-w-lg mx-auto mt-2 bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
             </div>
             
-            {/* Rendu conditionnel des actualités */}
             {newsLoading ? (
-              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {[...Array(6)].map((_, i) => (
-                  <NewsCardSkeleton key={i} />
-                ))}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Actualités Astronomiques</h2>
+                  <div className="h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-32 animate-pulse relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+                  </div>
+                </div>
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {[...Array(6)].map((_, i) => (
+                    <NewsCardSkeleton key={i} />
+                  ))}
+                </div>
               </div>
             ) : newsError ? (
               <div className="bg-red-100/20 dark:bg-red-900/20 border border-red-200/30 dark:border-red-500/30 rounded-lg p-4 sm:p-6 backdrop-blur-sm shadow-lg shadow-red-500/5">
@@ -819,8 +879,8 @@ export default function ExplorePage() {
                 </p>
               </div>
             ) : (
-              <>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-4 sm:mb-6">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
                   <div className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 flex items-center gap-2 flex-wrap">
                     Source : Spaceflight News API
                     <span className="px-2 py-1 bg-blue-100/20 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 rounded">
@@ -828,20 +888,20 @@ export default function ExplorePage() {
                     </span>
                   </div>
                 </div>
-                
+
                 <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {spaceNews.slice(0, 6).map((article) => (
+                  {spaceNews.map((article) => (
                     <a
                       key={article.id}
                       href={article.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group block bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors duration-200 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full will-change-[background-color]"
+                      className="group block bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden hover:bg-white/60 dark:hover:bg-gray-800/60 transition-colors duration-200 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 will-change-[background-color]"
                     >
                       <div className="aspect-video relative overflow-hidden">
                         <div className="absolute inset-0 z-10 will-change-[opacity] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40"></div>
-                        <OptimizedImage
-                          src={article.image_url || '/assets/default.webp'}
+                        <OptimizedImage 
+                          src={article.image_url || '/assets/default.webp'} 
                           alt={article.title}
                           className="w-full h-full object-cover will-change-transform"
                         />
@@ -854,17 +914,17 @@ export default function ExplorePage() {
                         </div>
                       </div>
                       <div className="p-3 sm:p-4">
-                        <h3 className="text-sm sm:text-base font-semibold text-gray-200 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-300 transition-colors duration-150">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-500 dark:group-hover:text-blue-300 transition-colors duration-150">
                           {article.title}
                         </h3>
-                        <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
                           {article.summary}
                         </p>
                       </div>
                     </a>
                   ))}
                 </div>
-              </>
+              </div>
             )}
           </div>
         </main>
@@ -898,14 +958,14 @@ export default function ExplorePage() {
             type="staggered"
             className="text-center mb-8 sm:mb-12"
             style={{ willChange: 'transform' }}
-            triggerOnce={optimizedAnimationProps.triggerOnce}
+            triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
             threshold={0.2}
           >
             <ScrollAnimationContainer 
               type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeDown"}
               className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent leading-relaxed pb-1"
               delay={optimizedAnimationProps.delay}
-              triggerOnce={optimizedAnimationProps.triggerOnce}
+              triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
               disableOnLowEnd={true}
               force3d={optimizedAnimationProps.force3d}
               gpuRender={optimizedAnimationProps.gpuRender}
@@ -918,7 +978,7 @@ export default function ExplorePage() {
               type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
               className="text-base sm:text-lg md:text-xl text-gray-200 dark:text-gray-200 max-w-3xl mx-auto leading-relaxed pb-1"
               delay={optimizedAnimationProps.delay + 100}
-              triggerOnce={optimizedAnimationProps.triggerOnce}
+              triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
               disableOnLowEnd={true}
               force3d={optimizedAnimationProps.force3d}
               gpuRender={optimizedAnimationProps.gpuRender}
@@ -932,7 +992,7 @@ export default function ExplorePage() {
                 type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
                 className="mt-4 p-3 bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200/60 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-300 rounded-md backdrop-blur-sm"
                 delay={optimizedAnimationProps.delay + 200}
-                triggerOnce={optimizedAnimationProps.triggerOnce}
+                triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
                 disableOnLowEnd={true}
                 force3d={optimizedAnimationProps.force3d}
                 gpuRender={optimizedAnimationProps.gpuRender}
@@ -947,7 +1007,7 @@ export default function ExplorePage() {
           <ScrollAnimationContainer
             type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
             className="mb-10 sm:mb-16 md:mb-20 relative"
-            triggerOnce={optimizedAnimationProps.triggerOnce}
+            triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
             exitAnimation={false}
             threshold={0.1}
             rootMargin="100px 0px"
@@ -975,7 +1035,7 @@ export default function ExplorePage() {
           <ScrollAnimationContainer
             type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
             className="relative"
-            triggerOnce={optimizedAnimationProps.triggerOnce}
+            triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
             exitAnimation={false}
             threshold={0.05}
             rootMargin="100px 0px"
@@ -1001,7 +1061,7 @@ export default function ExplorePage() {
                   type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "scale"}
                   className="h-full"
                   delay={Math.min(index * 20, 100)} // Limite le délai maximum à 100ms
-                  triggerOnce={optimizedAnimationProps.triggerOnce}
+                  triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
                   exitAnimation={false}
                   threshold={0.05}
                   rootMargin="200px 0px"
@@ -1016,11 +1076,11 @@ export default function ExplorePage() {
             </div>
           </ScrollAnimationContainer>
           
-          {/* Nouvelle section d'actualités spatiales */}
+          {/* Nouvelle section d'actualités spatiales avec le même rendu que PlanetNews */}
           <ScrollAnimationContainer
             type={optimizedAnimationProps.useSimpleAnimations ? "fadeIn" : "fadeUp"}
             className="relative mt-16 mb-10"
-            triggerOnce={optimizedAnimationProps.triggerOnce}
+            triggerOnce={optimizedAnimationProps.triggerOnce || hasBeenVisible}
             exitAnimation={false}
             threshold={0.05}
             rootMargin="150px 0px"
@@ -1040,10 +1100,17 @@ export default function ExplorePage() {
             </div>
             
             {newsLoading ? (
-              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {[...Array(6)].map((_, i) => (
-                  <NewsCardSkeleton key={i} />
-                ))}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                  <div className="h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full w-32 animate-pulse relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-blue-500/10 to-transparent skeleton-wave"></div>
+                  </div>
+                </div>
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {[...Array(6)].map((_, i) => (
+                    <NewsCardSkeleton key={i} />
+                  ))}
+                </div>
               </div>
             ) : newsError ? (
               <div className="bg-red-100/20 dark:bg-red-900/20 border border-red-200/30 dark:border-red-500/30 rounded-lg p-4 sm:p-6 backdrop-blur-sm shadow-lg shadow-red-500/5">
@@ -1060,8 +1127,8 @@ export default function ExplorePage() {
                 </p>
               </div>
             ) : (
-              <>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-4 sm:mb-6">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
                   <div className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 flex items-center gap-2 flex-wrap">
                     Source : Spaceflight News API
                     <span className="px-2 py-1 bg-blue-100/20 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 rounded">
@@ -1071,18 +1138,18 @@ export default function ExplorePage() {
                 </div>
                 
                 <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {spaceNews.slice(0, 6).map((article) => (
+                  {spaceNews.map((article) => (
                     <a
                       key={article.id}
                       href={article.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group block bg-white/30 dark:bg-gray-800/30 rounded-lg overflow-hidden hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors duration-200 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 backdrop-blur-sm h-full will-change-[background-color]"
+                      className="group block bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden hover:bg-white/60 dark:hover:bg-gray-800/60 transition-colors duration-200 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 will-change-[background-color]"
                     >
                       <div className="aspect-video relative overflow-hidden">
                         <div className="absolute inset-0 z-10 will-change-[opacity] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40"></div>
-                        <OptimizedImage
-                          src={article.image_url || '/assets/default.webp'}
+                        <OptimizedImage 
+                          src={article.image_url || '/assets/default.webp'} 
                           alt={article.title}
                           className="w-full h-full object-cover will-change-transform"
                         />
@@ -1095,17 +1162,17 @@ export default function ExplorePage() {
                         </div>
                       </div>
                       <div className="p-3 sm:p-4">
-                        <h3 className="text-sm sm:text-base font-semibold text-gray-200 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-300 transition-colors duration-150">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-500 dark:group-hover:text-blue-300 transition-colors duration-150">
                           {article.title}
                         </h3>
-                        <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
                           {article.summary}
                         </p>
                       </div>
                     </a>
                   ))}
                 </div>
-              </>
+              </div>
             )}
           </ScrollAnimationContainer>
         </main>
