@@ -25,26 +25,53 @@ const AsteroidBelt = lazy(() => import('./AsteroidBelt').then(mod => ({ default:
 const NebulaBackground = lazy(() => import('./Nebula').then(mod => ({ default: mod.default })));
 
 // Composants optimisés avec memo
-const PostProcessingEffects = React.memo(() => (
-  <EffectComposer>
+const PostProcessingEffects = React.memo(({ quality }: { quality: 'low' | 'medium' | 'high' }) => {
+  // Ajustement des effets en fonction de la qualité
+  const bloomIntensity = quality === 'high' ? 1.5 : 1.0;
+  const bloomLuminanceThreshold = quality === 'high' ? 0.2 : 0.3;
+  const bloomLuminanceSmoothing = quality === 'high' ? 0.8 : 0.6;
+  const bloomKernelSize = quality === 'high' ? KernelSize.LARGE : KernelSize.MEDIUM;
+  
+  // Désactiver la vignette en mode medium pour de meilleures performances
+  const showVignette = quality === 'high';
+  // Réduire la force de l'aberration chromatique en mode medium
+  const chromaticAberrationOffset = quality === 'high' 
+    ? new THREE.Vector2(0.0008, 0.0008) 
+    : new THREE.Vector2(0.0004, 0.0004);
+  
+  const effects = [
     <Bloom 
-      intensity={1.5} 
-      luminanceThreshold={0.2} 
-      luminanceSmoothing={0.8} 
+      key="bloom"
+      intensity={bloomIntensity}
+      luminanceThreshold={bloomLuminanceThreshold}
+      luminanceSmoothing={bloomLuminanceSmoothing}
       blendFunction={BlendFunction.SCREEN}
-      kernelSize={KernelSize.LARGE}
-    />
-    <Vignette 
-      offset={0.2} 
-      darkness={0.7} 
-      blendFunction={BlendFunction.NORMAL}
-    />
+      kernelSize={bloomKernelSize}
+    />,
     <ChromaticAberration 
-      offset={new THREE.Vector2(0.0008, 0.0008)} 
+      key="chromatic"
+      offset={chromaticAberrationOffset} 
       blendFunction={BlendFunction.NORMAL}
     />
-  </EffectComposer>
-));
+  ];
+  
+  if (showVignette) {
+    effects.splice(1, 0, 
+      <Vignette 
+        key="vignette"
+        offset={0.2} 
+        darkness={0.7} 
+        blendFunction={BlendFunction.NORMAL}
+      />
+    );
+  }
+  
+  return (
+    <EffectComposer>
+      {effects}
+    </EffectComposer>
+  );
+});
 
 PostProcessingEffects.displayName = 'PostProcessingEffects';
 
@@ -276,24 +303,24 @@ export default function SolarSystemView({
         };
       case 'medium':
         return {
-          dpr: [0.8, fullscreenUpgrade ? 1.5 : 1.2] as [number, number], // Résolution moyenne
-          starsCount: fullscreenUpgrade ? 2500 : 1500, // Nombre d'étoiles modéré (réduit de 5000/3500 à 2500/1500)
-          usePostProcessing: true, // Activer les effets de base
-          drawDistance: fullscreenUpgrade ? 100 : 80, // Distance de rendu moyenne
-          asteroidsCount: fullscreenUpgrade ? 350 : 200, // Nombre modéré d'astéroïdes
-          frameloop: fullscreenUpgrade ? 'always' as const : 'demand' as const,
-          planetDetail: 32, // Détail moyen des géométries
-          textureQuality: 1, // Textures en résolution normale
-          shadowsEnabled: true, // Activer les ombres basiques
-          atmosphereQuality: 'medium' // Qualité d'atmosphère moyenne
+          dpr: [0.6, fullscreenUpgrade ? 1.0 : 0.9] as [number, number], // Résolution réduite pour de meilleures performances
+          starsCount: fullscreenUpgrade ? 800 : 500, // Nombre d'étoiles réduit
+          usePostProcessing: !prefersReducedMotion, // Utiliser les effets post-processing seulement si les animations ne sont pas réduites
+          drawDistance: fullscreenUpgrade ? 90 : 70, // Distance de rendu légèrement réduite
+          asteroidsCount: fullscreenUpgrade ? 150 : 100, // Nombre d'astéroïdes considérablement réduit
+          frameloop: 'demand' as const, // Toujours utiliser demand pour les performances
+          planetDetail: 24, // Détail des géométries réduit (entre low et l'ancien medium)
+          textureQuality: 0.8, // Textures légèrement réduites
+          shadowsEnabled: !prefersReducedMotion, // Désactiver les ombres si préférence animations réduites
+          atmosphereQuality: prefersReducedMotion ? 'low' : 'medium' // Adapter la qualité d'atmosphère
         };
       case 'high':
         return {
           dpr: [1, fullscreenUpgrade ? 2.5 : 2] as [number, number], // Haute résolution
-          starsCount: fullscreenUpgrade ? 5000 : 3000, // Grand nombre d'étoiles (réduit de 12000/8000 à 5000/3000)
+          starsCount: fullscreenUpgrade ? 1500 : 1000, // Grand nombre d'étoiles (réduit de 12000/8000 à 5000/3000)
           usePostProcessing: true, // Tous les effets activés
           drawDistance: fullscreenUpgrade ? 150 : 120, // Grande distance de rendu
-          asteroidsCount: fullscreenUpgrade ? 1200 : 800, // Grand nombre d'astéroïdes
+          asteroidsCount: fullscreenUpgrade ? 600 : 400, // Grand nombre d'astéroïdes
           frameloop: 'always' as const, // Rendu continu pour des animations fluides
           planetDetail: 64, // Détail maximal des géométries
           textureQuality: 2, // Textures haute résolution
@@ -524,7 +551,9 @@ export default function SolarSystemView({
                   />
                   
                   {/* Effets post-traitement - désactivés pour les préférences d'animation réduites */}
-                  {qualitySettings.usePostProcessing && !prefersReducedMotion && <PostProcessingEffects />}
+                  {qualitySettings.usePostProcessing && !prefersReducedMotion && (
+                    <PostProcessingEffects quality={quality} />
+                  )}
                 </>
               )}
             </Canvas>

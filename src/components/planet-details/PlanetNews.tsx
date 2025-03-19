@@ -214,16 +214,17 @@ export function PlanetNews({ planetName }: PlanetNewsProps) {
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="group block bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden hover:bg-white/70 dark:hover:bg-gray-800/70 transition-all duration-300 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5"
+            className="group block bg-white/50 dark:bg-gray-800/50 rounded-lg overflow-hidden hover:bg-white/60 dark:hover:bg-gray-800/60 transition-colors duration-200 cursor-pointer shadow-lg shadow-blue-500/5 dark:shadow-blue-500/5 will-change-[background-color]"
           >
             <div className="aspect-video relative overflow-hidden">
+              <div className="absolute inset-0 z-10 will-change-[opacity] opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40"></div>
               <OptimizedImage 
                 src={article.image_url || '/assets/default.webp'} 
                 alt={article.title}
-                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
+                className="w-full h-full object-cover will-change-transform"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-              <div className="absolute bottom-2 left-3 right-3">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+              <div className="absolute bottom-2 left-3 right-3 z-20">
                 <p className="text-xs sm:text-sm text-gray-200">
                   {formatDate(article.published_at)}
                 </p>
@@ -231,7 +232,7 @@ export function PlanetNews({ planetName }: PlanetNewsProps) {
               </div>
             </div>
             <div className="p-3 sm:p-4">
-              <h3 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-blue-500 dark:group-hover:text-blue-300 transition-colors duration-150">
                 {article.title}
               </h3>
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 sm:line-clamp-3">
